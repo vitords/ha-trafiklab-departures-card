@@ -113,6 +113,7 @@ const DEFAULT_LAYOUT = [
     LayoutCell.ICON,
     LayoutCell.LINE,
     LayoutCell.DESTINATION,
+    LayoutCell.PLATFORM,
     LayoutCell.TIME_DIFF,
     LayoutCell.PLANNED_TIME,
     LayoutCell.DELAY,
@@ -286,10 +287,21 @@ function matchesFilter(dep, filter) {
         if (!allowed.includes(String(dep.line)))
             return false;
     }
-    // destination substring filter (case-insensitive)
+    // destination substring filter — string or array, OR logic (case-insensitive)
     if (filter.destination !== undefined) {
         const dest = dep.destination?.toLowerCase() ?? "";
-        if (!dest.includes(filter.destination.toLowerCase()))
+        const needles = Array.isArray(filter.destination)
+            ? filter.destination
+            : [filter.destination];
+        if (!needles.some((n) => dest.includes(n.toLowerCase())))
+            return false;
+    }
+    // platform filter — exact match, string or array
+    if (filter.platform !== undefined) {
+        const allowed = Array.isArray(filter.platform)
+            ? filter.platform.map(String)
+            : [String(filter.platform)];
+        if (!allowed.includes(String(dep.platform ?? "")))
             return false;
     }
     // direction filter
@@ -822,23 +834,10 @@ let DeparturesCardEditor = class DeparturesCardEditor extends i$2 {
     setConfig(config) {
         this._config = config;
     }
-    _valueChanged(ev) {
-        if (!this._config)
-            return;
-        const target = ev.target;
-        const key = target.getAttribute("data-key");
-        if (!key)
-            return;
-        let value = ev.detail?.value ?? target.value;
-        if (target.type === "checkbox")
-            value = target.checked;
-        if (value === "")
-            value = undefined;
-        this._updateConfig({ [key]: value });
-    }
     _updateConfig(updates) {
-        const newConfig = { ...this._config, ...updates };
-        this.dispatchEvent(new CustomEvent("config-changed", { detail: { config: newConfig } }));
+        this.dispatchEvent(new CustomEvent("config-changed", {
+            detail: { config: { ...this._config, ...updates } },
+        }));
     }
     _updateLine(index, updates) {
         const lines = [...(this._config.lines ?? [{}])];
@@ -850,6 +849,19 @@ let DeparturesCardEditor = class DeparturesCardEditor extends i$2 {
         const filter = { ...(lines[index]?.filter ?? {}), [key]: value || undefined };
         lines[index] = { ...lines[index], filter };
         this._updateConfig({ lines });
+    }
+    /** Parse a comma-separated string into a single string or array (or undefined if empty) */
+    _parseCSV(raw) {
+        const parts = raw.split(",").map((s) => s.trim()).filter(Boolean);
+        if (parts.length === 0)
+            return undefined;
+        return parts.length === 1 ? parts[0] : parts;
+    }
+    /** Serialize a string | string[] filter value back to a comma-separated display string */
+    _serializeCSV(value) {
+        if (!value)
+            return "";
+        return Array.isArray(value) ? value.join(", ") : value;
     }
     _addLine() {
         const lines = [...(this._config.lines ?? [])];
@@ -882,14 +894,12 @@ let DeparturesCardEditor = class DeparturesCardEditor extends i$2 {
         <ha-textfield
           label="Title"
           .value=${this._config.title ?? "Departures"}
-          data-key="title"
-          @change=${this._valueChanged}
+          @change=${(ev) => this._updateConfig({ title: ev.target.value || undefined })}
         ></ha-textfield>
         <ha-textfield
           label="Icon"
           .value=${this._config.icon ?? "mdi:bus-clock"}
-          data-key="icon"
-          @change=${this._valueChanged}
+          @change=${(ev) => this._updateConfig({ icon: ev.target.value || undefined })}
         ></ha-textfield>
         <ha-formfield label="Show header">
           <ha-switch
@@ -901,6 +911,12 @@ let DeparturesCardEditor = class DeparturesCardEditor extends i$2 {
           <ha-switch
             .checked=${this._config.show_list_header === true}
             @change=${(ev) => this._updateConfig({ show_list_header: ev.target.checked })}
+          ></ha-switch>
+        </ha-formfield>
+        <ha-formfield label="Show real-time badge">
+          <ha-switch
+            .checked=${this._config.show_realtime_badge === true}
+            @change=${(ev) => this._updateConfig({ show_realtime_badge: ev.target.checked })}
           ></ha-switch>
         </ha-formfield>
       </div>
@@ -933,7 +949,6 @@ let DeparturesCardEditor = class DeparturesCardEditor extends i$2 {
           label="Departures to show"
           type="number"
           .value=${String(this._config.departures_to_show ?? DEFAULT_DEPARTURES_TO_SHOW)}
-          data-key="departures_to_show"
           @change=${(ev) => {
             const val = parseInt(ev.target.value);
             this._updateConfig({ departures_to_show: isNaN(val) ? DEFAULT_DEPARTURES_TO_SHOW : val });
@@ -948,7 +963,7 @@ let DeparturesCardEditor = class DeparturesCardEditor extends i$2 {
       </div>
 
       <!-- Line groups -->
-      <div class="section-title">Line Groups (filters & colors)</div>
+      <div class="section-title">Line Groups</div>
       ${lines.map((line, i) => this._renderLineEditor(line, i))}
       <mwc-button class="add-btn" @click=${this._addLine}>
         + Add line group
@@ -957,6 +972,9 @@ let DeparturesCardEditor = class DeparturesCardEditor extends i$2 {
     }
     _renderLineEditor(line, index) {
         const filter = line.filter ?? {};
+        const transportMode = Array.isArray(filter.transport_mode)
+            ? filter.transport_mode[0] ?? ""
+            : filter.transport_mode ?? "";
         return b `
       <div class="line-card">
         <div class="line-card-header">
@@ -964,6 +982,8 @@ let DeparturesCardEditor = class DeparturesCardEditor extends i$2 {
           <button class="remove-btn" @click=${() => this._removeLine(index)}>✕</button>
         </div>
         <div class="grid">
+
+          <!-- Appearance -->
           <ha-textfield
             label="Line color (hex)"
             .value=${line.line_color ?? "#1565c0"}
@@ -978,11 +998,11 @@ let DeparturesCardEditor = class DeparturesCardEditor extends i$2 {
             this._updateLine(index, { line_name: v || undefined });
         }}
           ></ha-textfield>
+
+          <!-- Filters -->
           <ha-select
-            label="Transport mode filter"
-            .value=${Array.isArray(filter.transport_mode)
-            ? filter.transport_mode[0] ?? ""
-            : filter.transport_mode ?? ""}
+            label="Transport mode"
+            .value=${transportMode}
             @selected=${(ev) => {
             const v = ev.detail.value;
             this._updateLineFilter(index, "transport_mode", v || undefined);
@@ -998,31 +1018,44 @@ let DeparturesCardEditor = class DeparturesCardEditor extends i$2 {
             <mwc-list-item value="TAXI">Taxi</mwc-list-item>
           </ha-select>
           <ha-textfield
-            label="Line number filter"
-            .value=${Array.isArray(filter.line)
-            ? filter.line.join(",")
-            : filter.line ?? ""}
-            placeholder="e.g. 7 or 1,4,7"
+            label="Line number(s)"
+            .value=${this._serializeCSV(filter.line)}
+            placeholder="e.g. 7 or 1, 4, 7"
             @change=${(ev) => {
-            const v = ev.target.value.trim();
-            if (!v) {
-                this._updateLineFilter(index, "line", undefined);
-            }
-            else {
-                const lines = v.split(",").map((s) => s.trim()).filter(Boolean);
-                this._updateLineFilter(index, "line", lines.length === 1 ? lines[0] : lines);
-            }
+            const v = ev.target.value;
+            this._updateLineFilter(index, "line", this._parseCSV(v));
         }}
           ></ha-textfield>
           <ha-textfield
-            label="Destination filter (substring)"
-            .value=${filter.destination ?? ""}
-            placeholder="e.g. Stockholm"
+            label="Destination(s)"
+            .value=${this._serializeCSV(filter.destination)}
+            placeholder="e.g. Stockholm or Stockholm, Solna"
+            class="full-width"
             @change=${(ev) => {
-            const v = ev.target.value.trim();
-            this._updateLineFilter(index, "destination", v || undefined);
+            const v = ev.target.value;
+            this._updateLineFilter(index, "destination", this._parseCSV(v));
         }}
           ></ha-textfield>
+          <span class="hint">Comma-separated substrings, any match included (OR logic)</span>
+          <ha-textfield
+            label="Platform(s)"
+            .value=${this._serializeCSV(filter.platform)}
+            placeholder="e.g. 3 or 1, 2"
+            @change=${(ev) => {
+            const v = ev.target.value;
+            this._updateLineFilter(index, "platform", this._parseCSV(v));
+        }}
+          ></ha-textfield>
+          <ha-textfield
+            label="Direction"
+            .value=${filter.direction ?? ""}
+            placeholder="e.g. 0 or 1"
+            @change=${(ev) => {
+            const v = ev.target.value.trim();
+            this._updateLineFilter(index, "direction", v || undefined);
+        }}
+          ></ha-textfield>
+
         </div>
       </div>
     `;
@@ -1053,7 +1086,6 @@ DeparturesCardEditor.styles = i$5 `
       border-radius: 6px;
       padding: 8px;
       margin-bottom: 8px;
-      position: relative;
     }
     .line-card-header {
       display: flex;
@@ -1074,6 +1106,12 @@ DeparturesCardEditor.styles = i$5 `
     .add-btn {
       margin-top: 8px;
       width: 100%;
+    }
+    .hint {
+      font-size: 0.75em;
+      opacity: 0.6;
+      grid-column: 1 / -1;
+      margin-top: -4px;
     }
     ha-textfield, ha-select {
       width: 100%;

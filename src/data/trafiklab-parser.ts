@@ -90,10 +90,21 @@ function matchesFilter(dep: TrafiklabDeparture, filter: LineFilter): boolean {
     if (!allowed.includes(String(dep.line))) return false;
   }
 
-  // destination substring filter (case-insensitive)
+  // destination substring filter — string or array, OR logic (case-insensitive)
   if (filter.destination !== undefined) {
     const dest = dep.destination?.toLowerCase() ?? "";
-    if (!dest.includes(filter.destination.toLowerCase())) return false;
+    const needles = Array.isArray(filter.destination)
+      ? filter.destination
+      : [filter.destination];
+    if (!needles.some((n) => dest.includes(n.toLowerCase()))) return false;
+  }
+
+  // platform filter — exact match, string or array
+  if (filter.platform !== undefined) {
+    const allowed = Array.isArray(filter.platform)
+      ? filter.platform.map(String)
+      : [String(filter.platform)];
+    if (!allowed.includes(String(dep.platform ?? ""))) return false;
   }
 
   // direction filter

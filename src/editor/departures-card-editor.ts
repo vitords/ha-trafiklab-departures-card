@@ -1,4 +1,4 @@
-import { LitElement, html, css, nothing, TemplateResult } from "lit";
+import { LitElement, html, css, TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { HomeAssistant, LovelaceCardEditor } from "custom-card-helpers";
 
@@ -6,7 +6,6 @@ import {
   CardOrientation,
   CardTheme,
   Config,
-  LayoutCell,
   LineConfig,
   TransportMode,
 } from "../types";
@@ -39,7 +38,6 @@ export class DeparturesCardEditor extends LitElement implements LovelaceCardEdit
       border-radius: 6px;
       padding: 8px;
       margin-bottom: 8px;
-      position: relative;
     }
     .line-card-header {
       display: flex;
@@ -61,6 +59,12 @@ export class DeparturesCardEditor extends LitElement implements LovelaceCardEdit
       margin-top: 8px;
       width: 100%;
     }
+    .hint {
+      font-size: 0.75em;
+      opacity: 0.6;
+      grid-column: 1 / -1;
+      margin-top: -4px;
+    }
     ha-textfield, ha-select {
       width: 100%;
     }
@@ -73,22 +77,10 @@ export class DeparturesCardEditor extends LitElement implements LovelaceCardEdit
     this._config = config;
   }
 
-  private _valueChanged(ev: CustomEvent): void {
-    if (!this._config) return;
-    const target = ev.target as HTMLInputElement;
-    const key = target.getAttribute("data-key");
-    if (!key) return;
-
-    let value: unknown = (ev.detail as any)?.value ?? target.value;
-    if (target.type === "checkbox") value = (target as HTMLInputElement).checked;
-    if (value === "") value = undefined;
-
-    this._updateConfig({ [key]: value });
-  }
-
   private _updateConfig(updates: Partial<Config>): void {
-    const newConfig = { ...this._config, ...updates };
-    this.dispatchEvent(new CustomEvent("config-changed", { detail: { config: newConfig } }));
+    this.dispatchEvent(new CustomEvent("config-changed", {
+      detail: { config: { ...this._config, ...updates } },
+    }));
   }
 
   private _updateLine(index: number, updates: Partial<LineConfig>): void {
@@ -102,6 +94,19 @@ export class DeparturesCardEditor extends LitElement implements LovelaceCardEdit
     const filter = { ...(lines[index]?.filter ?? {}), [key]: value || undefined };
     lines[index] = { ...lines[index], filter };
     this._updateConfig({ lines });
+  }
+
+  /** Parse a comma-separated string into a single string or array (or undefined if empty) */
+  private _parseCSV(raw: string): string | string[] | undefined {
+    const parts = raw.split(",").map((s) => s.trim()).filter(Boolean);
+    if (parts.length === 0) return undefined;
+    return parts.length === 1 ? parts[0] : parts;
+  }
+
+  /** Serialize a string | string[] filter value back to a comma-separated display string */
+  private _serializeCSV(value: string | string[] | undefined): string {
+    if (!value) return "";
+    return Array.isArray(value) ? value.join(", ") : value;
   }
 
   private _addLine(): void {
@@ -139,14 +144,14 @@ export class DeparturesCardEditor extends LitElement implements LovelaceCardEdit
         <ha-textfield
           label="Title"
           .value=${this._config.title ?? "Departures"}
-          data-key="title"
-          @change=${this._valueChanged}
+          @change=${(ev: Event) =>
+            this._updateConfig({ title: (ev.target as HTMLInputElement).value || undefined })}
         ></ha-textfield>
         <ha-textfield
           label="Icon"
           .value=${this._config.icon ?? "mdi:bus-clock"}
-          data-key="icon"
-          @change=${this._valueChanged}
+          @change=${(ev: Event) =>
+            this._updateConfig({ icon: (ev.target as HTMLInputElement).value || undefined })}
         ></ha-textfield>
         <ha-formfield label="Show header">
           <ha-switch
@@ -160,6 +165,13 @@ export class DeparturesCardEditor extends LitElement implements LovelaceCardEdit
             .checked=${this._config.show_list_header === true}
             @change=${(ev: Event) =>
               this._updateConfig({ show_list_header: (ev.target as HTMLInputElement).checked })}
+          ></ha-switch>
+        </ha-formfield>
+        <ha-formfield label="Show real-time badge">
+          <ha-switch
+            .checked=${this._config.show_realtime_badge === true}
+            @change=${(ev: Event) =>
+              this._updateConfig({ show_realtime_badge: (ev.target as HTMLInputElement).checked })}
           ></ha-switch>
         </ha-formfield>
       </div>
@@ -194,7 +206,6 @@ export class DeparturesCardEditor extends LitElement implements LovelaceCardEdit
           label="Departures to show"
           type="number"
           .value=${String(this._config.departures_to_show ?? DEFAULT_DEPARTURES_TO_SHOW)}
-          data-key="departures_to_show"
           @change=${(ev: Event) => {
             const val = parseInt((ev.target as HTMLInputElement).value);
             this._updateConfig({ departures_to_show: isNaN(val) ? DEFAULT_DEPARTURES_TO_SHOW : val });
@@ -210,7 +221,7 @@ export class DeparturesCardEditor extends LitElement implements LovelaceCardEdit
       </div>
 
       <!-- Line groups -->
-      <div class="section-title">Line Groups (filters & colors)</div>
+      <div class="section-title">Line Groups</div>
       ${lines.map((line, i) => this._renderLineEditor(line, i))}
       <mwc-button class="add-btn" @click=${this._addLine}>
         + Add line group
@@ -220,6 +231,10 @@ export class DeparturesCardEditor extends LitElement implements LovelaceCardEdit
 
   private _renderLineEditor(line: LineConfig, index: number): TemplateResult {
     const filter = line.filter ?? {};
+    const transportMode = Array.isArray(filter.transport_mode)
+      ? filter.transport_mode[0] ?? ""
+      : filter.transport_mode ?? "";
+
     return html`
       <div class="line-card">
         <div class="line-card-header">
@@ -227,6 +242,8 @@ export class DeparturesCardEditor extends LitElement implements LovelaceCardEdit
           <button class="remove-btn" @click=${() => this._removeLine(index)}>✕</button>
         </div>
         <div class="grid">
+
+          <!-- Appearance -->
           <ha-textfield
             label="Line color (hex)"
             .value=${line.line_color ?? "#1565c0"}
@@ -242,11 +259,11 @@ export class DeparturesCardEditor extends LitElement implements LovelaceCardEdit
               this._updateLine(index, { line_name: v || undefined });
             }}
           ></ha-textfield>
+
+          <!-- Filters -->
           <ha-select
-            label="Transport mode filter"
-            .value=${Array.isArray(filter.transport_mode)
-              ? filter.transport_mode[0] ?? ""
-              : filter.transport_mode ?? ""}
+            label="Transport mode"
+            .value=${transportMode}
             @selected=${(ev: CustomEvent) => {
               const v = ev.detail.value as TransportMode | "";
               this._updateLineFilter(index, "transport_mode", v || undefined);
@@ -262,30 +279,44 @@ export class DeparturesCardEditor extends LitElement implements LovelaceCardEdit
             <mwc-list-item value="TAXI">Taxi</mwc-list-item>
           </ha-select>
           <ha-textfield
-            label="Line number filter"
-            .value=${Array.isArray(filter.line)
-              ? filter.line.join(",")
-              : filter.line ?? ""}
-            placeholder="e.g. 7 or 1,4,7"
+            label="Line number(s)"
+            .value=${this._serializeCSV(filter.line)}
+            placeholder="e.g. 7 or 1, 4, 7"
             @change=${(ev: Event) => {
-              const v = (ev.target as HTMLInputElement).value.trim();
-              if (!v) {
-                this._updateLineFilter(index, "line", undefined);
-              } else {
-                const lines = v.split(",").map((s) => s.trim()).filter(Boolean);
-                this._updateLineFilter(index, "line", lines.length === 1 ? lines[0] : lines);
-              }
+              const v = (ev.target as HTMLInputElement).value;
+              this._updateLineFilter(index, "line", this._parseCSV(v));
             }}
           ></ha-textfield>
           <ha-textfield
-            label="Destination filter (substring)"
-            .value=${filter.destination ?? ""}
-            placeholder="e.g. Stockholm"
+            label="Destination(s)"
+            .value=${this._serializeCSV(filter.destination)}
+            placeholder="e.g. Stockholm or Stockholm, Solna"
+            class="full-width"
             @change=${(ev: Event) => {
-              const v = (ev.target as HTMLInputElement).value.trim();
-              this._updateLineFilter(index, "destination", v || undefined);
+              const v = (ev.target as HTMLInputElement).value;
+              this._updateLineFilter(index, "destination", this._parseCSV(v));
             }}
           ></ha-textfield>
+          <span class="hint">Comma-separated substrings, any match included (OR logic)</span>
+          <ha-textfield
+            label="Platform(s)"
+            .value=${this._serializeCSV(filter.platform)}
+            placeholder="e.g. 3 or 1, 2"
+            @change=${(ev: Event) => {
+              const v = (ev.target as HTMLInputElement).value;
+              this._updateLineFilter(index, "platform", this._parseCSV(v));
+            }}
+          ></ha-textfield>
+          <ha-textfield
+            label="Direction"
+            .value=${filter.direction ?? ""}
+            placeholder="e.g. 0 or 1"
+            @change=${(ev: Event) => {
+              const v = (ev.target as HTMLInputElement).value.trim();
+              this._updateLineFilter(index, "direction", v || undefined);
+            }}
+          ></ha-textfield>
+
         </div>
       </div>
     `;

@@ -18,6 +18,7 @@ export const DEFAULT_LAYOUT: LayoutCell[] = [
   LayoutCell.ICON,
   LayoutCell.LINE,
   LayoutCell.DESTINATION,
+  LayoutCell.PLATFORM,
   LayoutCell.TIME_DIFF,
   LayoutCell.PLANNED_TIME,
   LayoutCell.DELAY,

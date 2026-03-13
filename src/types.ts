@@ -48,7 +48,8 @@ export interface TrafiklabSensorAttributes {
 export interface LineFilter {
   transport_mode?: TransportMode | TransportMode[];
   line?: string | string[];
-  destination?: string; // case-insensitive substring match
+  destination?: string | string[]; // one or more case-insensitive substrings (OR logic)
+  platform?: string | string[];    // exact match (or list)
   direction?: string;
 }
 
