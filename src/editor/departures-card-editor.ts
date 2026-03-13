@@ -12,7 +12,6 @@ import {
 } from "../types";
 import { CARD_EDITOR_NAME, DEFAULT_DEPARTURES_TO_SHOW, DEFAULT_LAYOUT } from "../constants";
 
-/** Canonical column order and display labels */
 const ALL_COLUMNS: { cell: LayoutCell; label: string }[] = [
   { cell: LayoutCell.ICON,           label: "Icon" },
   { cell: LayoutCell.LINE,           label: "Line" },
@@ -78,8 +77,28 @@ export class DeparturesCardEditor extends LitElement implements LovelaceCardEdit
       grid-column: 1 / -1;
       margin-top: -4px;
     }
-    ha-textfield, ha-select {
+    ha-textfield {
       width: 100%;
+    }
+    .select-wrapper {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .select-wrapper label {
+      font-size: 0.75em;
+      opacity: 0.7;
+      padding-left: 2px;
+    }
+    .select-wrapper select {
+      width: 100%;
+      padding: 10px 8px;
+      border: 1px solid var(--divider-color, #ccc);
+      border-radius: 4px;
+      background: var(--card-background-color, white);
+      color: var(--primary-text-color, black);
+      font-size: 1em;
+      cursor: pointer;
     }
     .columns-grid {
       display: grid;
@@ -115,14 +134,12 @@ export class DeparturesCardEditor extends LitElement implements LovelaceCardEdit
     this._updateConfig({ lines });
   }
 
-  /** Parse a comma-separated string into a single string or array (or undefined if empty) */
   private _parseCSV(raw: string): string | string[] | undefined {
     const parts = raw.split(",").map((s) => s.trim()).filter(Boolean);
     if (parts.length === 0) return undefined;
     return parts.length === 1 ? parts[0] : parts;
   }
 
-  /** Serialize a string | string[] filter value back to a comma-separated display string */
   private _serializeCSV(value: string | string[] | undefined): string {
     if (!value) return "";
     return Array.isArray(value) ? value.join(", ") : value;
@@ -132,7 +149,6 @@ export class DeparturesCardEditor extends LitElement implements LovelaceCardEdit
     const current: LayoutCell[] = (this._config.layout as LayoutCell[]) ?? DEFAULT_LAYOUT;
     let updated: LayoutCell[];
     if (enabled) {
-      // Insert in canonical order
       const order = ALL_COLUMNS.map((c) => c.cell);
       updated = order.filter((c) => c === cell || current.includes(c));
     } else {
@@ -153,9 +169,30 @@ export class DeparturesCardEditor extends LitElement implements LovelaceCardEdit
     this._updateConfig({ lines });
   }
 
+  /** Native select that reliably works inside shadow DOM */
+  private _renderSelect(
+    label: string,
+    value: string,
+    options: { value: string; label: string }[],
+    onChange: (value: string) => void,
+  ): TemplateResult {
+    return html`
+      <div class="select-wrapper">
+        <label>${label}</label>
+        <select
+          .value=${value}
+          @change=${(ev: Event) => onChange((ev.target as HTMLSelectElement).value)}
+        >
+          ${options.map(
+            (o) => html`<option value=${o.value} ?selected=${o.value === value}>${o.label}</option>`
+          )}
+        </select>
+      </div>
+    `;
+  }
+
   protected render(): TemplateResult {
     if (!this._config) return html``;
-
     const lines: LineConfig[] = this._config.lines ?? [{}];
 
     return html`
@@ -211,27 +248,27 @@ export class DeparturesCardEditor extends LitElement implements LovelaceCardEdit
       <!-- Display -->
       <div class="section-title">Display</div>
       <div class="grid">
-        <ha-select
-          label="Orientation"
-          .value=${this._config.orientation ?? CardOrientation.VERTICAL}
-          @change=${(ev: Event) =>
-            this._updateConfig({ orientation: (ev.target as any).value as CardOrientation })}
-        >
-          <mwc-list-item value=${CardOrientation.VERTICAL}>Vertical (list)</mwc-list-item>
-          <mwc-list-item value=${CardOrientation.HORIZONTAL}>Horizontal (table)</mwc-list-item>
-        </ha-select>
-        <ha-select
-          label="Theme"
-          .value=${this._config.theme ?? CardTheme.BASIC}
-          @change=${(ev: Event) =>
-            this._updateConfig({ theme: (ev.target as any).value as CardTheme })}
-        >
-          <mwc-list-item value=${CardTheme.BASIC}>Basic</mwc-list-item>
-          <mwc-list-item value=${CardTheme.BLACK_WHITE}>Black & White</mwc-list-item>
-          <mwc-list-item value=${CardTheme.BLUE_OCEAN}>Blue Ocean</mwc-list-item>
-          <mwc-list-item value=${CardTheme.CAPPUCINO}>Cappuccino</mwc-list-item>
-          <mwc-list-item value=${CardTheme.TABLE}>Table</mwc-list-item>
-        </ha-select>
+        ${this._renderSelect(
+          "Orientation",
+          this._config.orientation ?? CardOrientation.VERTICAL,
+          [
+            { value: CardOrientation.VERTICAL,   label: "Vertical (list)" },
+            { value: CardOrientation.HORIZONTAL, label: "Horizontal (table)" },
+          ],
+          (v) => this._updateConfig({ orientation: v as CardOrientation }),
+        )}
+        ${this._renderSelect(
+          "Theme",
+          this._config.theme ?? CardTheme.BASIC,
+          [
+            { value: CardTheme.BASIC,        label: "Basic" },
+            { value: CardTheme.BLACK_WHITE,  label: "Black & White" },
+            { value: CardTheme.BLUE_OCEAN,   label: "Blue Ocean" },
+            { value: CardTheme.CAPPUCINO,    label: "Cappuccino" },
+            { value: CardTheme.TABLE,        label: "Table" },
+          ],
+          (v) => this._updateConfig({ theme: v as CardTheme }),
+        )}
         <ha-textfield
           label="Departures to show"
           type="number"
@@ -253,23 +290,21 @@ export class DeparturesCardEditor extends LitElement implements LovelaceCardEdit
       <!-- Animations -->
       <div class="section-title">Animations</div>
       <div class="grid">
-        <ha-select
-          label="Animation on arrival"
-          .value=${this._config.departure_animation ?? "none"}
-          @change=${(ev: Event) => {
-            const v = (ev.target as any).value;
-            this._updateConfig({ departure_animation: v === "none" ? undefined : v });
-          }}
-        >
-          <mwc-list-item value="none">None</mwc-list-item>
-          <mwc-list-item value="flash">Flash</mwc-list-item>
-          <mwc-list-item value="bounce">Bounce</mwc-list-item>
-          <mwc-list-item value="shakeX">Shake horizontal</mwc-list-item>
-          <mwc-list-item value="shakeY">Shake vertical</mwc-list-item>
-          <mwc-list-item value="fadeIn">Fade in</mwc-list-item>
-          <mwc-list-item value="fadeOut">Fade out</mwc-list-item>
-          <mwc-list-item value="zoomIn">Zoom in</mwc-list-item>
-        </ha-select>
+        ${this._renderSelect(
+          "Animation on arrival",
+          this._config.departure_animation ?? "none",
+          [
+            { value: "none",    label: "None" },
+            { value: "flash",   label: "Flash" },
+            { value: "bounce",  label: "Bounce" },
+            { value: "shakeX",  label: "Shake horizontal" },
+            { value: "shakeY",  label: "Shake vertical" },
+            { value: "fadeIn",  label: "Fade in" },
+            { value: "fadeOut", label: "Fade out" },
+            { value: "zoomIn",  label: "Zoom in" },
+          ],
+          (v) => this._updateConfig({ departure_animation: v === "none" ? undefined : v }),
+        )}
         <ha-textfield
           label="Trigger (minutes before departure)"
           type="number"
@@ -329,8 +364,6 @@ export class DeparturesCardEditor extends LitElement implements LovelaceCardEdit
           <button class="remove-btn" @click=${() => this._removeLine(index)}>✕</button>
         </div>
         <div class="grid">
-
-          <!-- Appearance -->
           <ha-textfield
             label="Line color (hex)"
             .value=${line.line_color ?? "#1565c0"}
@@ -346,24 +379,20 @@ export class DeparturesCardEditor extends LitElement implements LovelaceCardEdit
               this._updateLine(index, { line_name: v || undefined });
             }}
           ></ha-textfield>
-
-          <!-- Filters -->
-          <ha-select
-            label="Transport mode"
-            .value=${transportMode}
-            @change=${(ev: Event) => {
-              const v = (ev.target as any).value as TransportMode | "";
-              this._updateLineFilter(index, "transport_mode", v || undefined);
-            }}
-          >
-            <mwc-list-item value="">All modes</mwc-list-item>
-            <mwc-list-item value="BUS">Bus</mwc-list-item>
-            <mwc-list-item value="TRAIN">Train</mwc-list-item>
-            <mwc-list-item value="METRO">Metro</mwc-list-item>
-            <mwc-list-item value="TRAM">Tram</mwc-list-item>
-            <mwc-list-item value="BOAT">Boat</mwc-list-item>
-            <mwc-list-item value="TAXI">Taxi</mwc-list-item>
-          </ha-select>
+          ${this._renderSelect(
+            "Transport mode",
+            transportMode,
+            [
+              { value: "",       label: "All modes" },
+              { value: "BUS",    label: "Bus" },
+              { value: "TRAIN",  label: "Train" },
+              { value: "METRO",  label: "Metro" },
+              { value: "TRAM",   label: "Tram" },
+              { value: "BOAT",   label: "Boat" },
+              { value: "TAXI",   label: "Taxi" },
+            ],
+            (v) => this._updateLineFilter(index, "transport_mode", (v as TransportMode) || undefined),
+          )}
           <ha-textfield
             label="Line number(s)"
             .value=${this._serializeCSV(filter.line)}
@@ -402,7 +431,6 @@ export class DeparturesCardEditor extends LitElement implements LovelaceCardEdit
               this._updateLineFilter(index, "direction", v || undefined);
             }}
           ></ha-textfield>
-
         </div>
       </div>
     `;
