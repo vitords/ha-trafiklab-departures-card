@@ -457,6 +457,17 @@ const BASE_STYLES = i$5 `
     line-height: 1.4;
   }
 
+  /* State messages */
+  .state-message {
+    padding: 12px 16px;
+    font-size: 0.9em;
+    opacity: 0.7;
+  }
+  .state-message.error {
+    color: var(--error-color, red);
+    opacity: 1;
+  }
+
   /* Footer */
   .card-footer {
     font-size: 0.72em;
@@ -830,6 +841,17 @@ ContentTable = __decorate([
     t$1("trafiklab-content-table")
 ], ContentTable);
 
+/** Canonical column order and display labels */
+const ALL_COLUMNS = [
+    { cell: LayoutCell.ICON, label: "Icon" },
+    { cell: LayoutCell.LINE, label: "Line" },
+    { cell: LayoutCell.DESTINATION, label: "Destination" },
+    { cell: LayoutCell.PLATFORM, label: "Platform" },
+    { cell: LayoutCell.TIME_DIFF, label: "In (countdown)" },
+    { cell: LayoutCell.PLANNED_TIME, label: "Scheduled time" },
+    { cell: LayoutCell.ESTIMATED_TIME, label: "Estimated time" },
+    { cell: LayoutCell.DELAY, label: "Delay" },
+];
 let DeparturesCardEditor = class DeparturesCardEditor extends i$2 {
     setConfig(config) {
         this._config = config;
@@ -862,6 +884,19 @@ let DeparturesCardEditor = class DeparturesCardEditor extends i$2 {
         if (!value)
             return "";
         return Array.isArray(value) ? value.join(", ") : value;
+    }
+    _toggleColumn(cell, enabled) {
+        const current = this._config.layout ?? DEFAULT_LAYOUT;
+        let updated;
+        if (enabled) {
+            // Insert in canonical order
+            const order = ALL_COLUMNS.map((c) => c.cell);
+            updated = order.filter((c) => c === cell || current.includes(c));
+        }
+        else {
+            updated = current.filter((c) => c !== cell);
+        }
+        this._updateConfig({ layout: updated });
     }
     _addLine() {
         const lines = [...(this._config.lines ?? [])];
@@ -927,7 +962,7 @@ let DeparturesCardEditor = class DeparturesCardEditor extends i$2 {
         <ha-select
           label="Orientation"
           .value=${this._config.orientation ?? CardOrientation.VERTICAL}
-          @selected=${(ev) => this._updateConfig({ orientation: ev.detail.value })}
+          @value-changed=${(ev) => this._updateConfig({ orientation: ev.detail.value })}
           @closed=${(ev) => ev.stopPropagation()}
         >
           <mwc-list-item value=${CardOrientation.VERTICAL}>Vertical (list)</mwc-list-item>
@@ -936,7 +971,7 @@ let DeparturesCardEditor = class DeparturesCardEditor extends i$2 {
         <ha-select
           label="Theme"
           .value=${this._config.theme ?? CardTheme.BASIC}
-          @selected=${(ev) => this._updateConfig({ theme: ev.detail.value })}
+          @value-changed=${(ev) => this._updateConfig({ theme: ev.detail.value })}
           @closed=${(ev) => ev.stopPropagation()}
         >
           <mwc-list-item value=${CardTheme.BASIC}>Basic</mwc-list-item>
@@ -960,6 +995,60 @@ let DeparturesCardEditor = class DeparturesCardEditor extends i$2 {
             @change=${(ev) => this._updateConfig({ sort_departures: ev.target.checked })}
           ></ha-switch>
         </ha-formfield>
+      </div>
+
+      <!-- Animations -->
+      <div class="section-title">Animations</div>
+      <div class="grid">
+        <ha-select
+          label="Animation on arrival"
+          .value=${this._config.departure_animation ?? "none"}
+          @value-changed=${(ev) => this._updateConfig({ departure_animation: ev.detail.value === "none" ? undefined : ev.detail.value })}
+          @closed=${(ev) => ev.stopPropagation()}
+        >
+          <mwc-list-item value="none">None</mwc-list-item>
+          <mwc-list-item value="flash">Flash</mwc-list-item>
+          <mwc-list-item value="bounce">Bounce</mwc-list-item>
+          <mwc-list-item value="shakeX">Shake horizontal</mwc-list-item>
+          <mwc-list-item value="shakeY">Shake vertical</mwc-list-item>
+          <mwc-list-item value="fadeIn">Fade in</mwc-list-item>
+          <mwc-list-item value="fadeOut">Fade out</mwc-list-item>
+          <mwc-list-item value="zoomIn">Zoom in</mwc-list-item>
+        </ha-select>
+        <ha-textfield
+          label="Trigger (minutes before departure)"
+          type="number"
+          .value=${String(this._config.arrival_time_offset ?? 2)}
+          @change=${(ev) => {
+            const val = parseInt(ev.target.value);
+            this._updateConfig({ arrival_time_offset: isNaN(val) ? 2 : val });
+        }}
+        ></ha-textfield>
+        <ha-textfield
+          label="Duration override (ms, 0 = default)"
+          type="number"
+          .value=${String(this._config.departure_animation_duration ?? 0)}
+          @change=${(ev) => {
+            const val = parseInt(ev.target.value);
+            this._updateConfig({ departure_animation_duration: !val ? undefined : val });
+        }}
+        ></ha-textfield>
+      </div>
+
+      <!-- Columns -->
+      <div class="section-title">Columns</div>
+      <div class="columns-grid">
+        ${ALL_COLUMNS.map(({ cell, label }) => {
+            const active = (this._config.layout ?? DEFAULT_LAYOUT).includes(cell);
+            return b `
+            <ha-formfield .label=${label}>
+              <ha-checkbox
+                .checked=${active}
+                @change=${(ev) => this._toggleColumn(cell, ev.target.checked)}
+              ></ha-checkbox>
+            </ha-formfield>
+          `;
+        })}
       </div>
 
       <!-- Line groups -->
@@ -1003,7 +1092,7 @@ let DeparturesCardEditor = class DeparturesCardEditor extends i$2 {
           <ha-select
             label="Transport mode"
             .value=${transportMode}
-            @selected=${(ev) => {
+            @value-changed=${(ev) => {
             const v = ev.detail.value;
             this._updateLineFilter(index, "transport_mode", v || undefined);
         }}
@@ -1116,6 +1205,12 @@ DeparturesCardEditor.styles = i$5 `
     ha-textfield, ha-select {
       width: 100%;
     }
+    .columns-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2px 8px;
+      padding: 4px 0;
+    }
   `;
 __decorate([
     n$1({ attribute: false })
@@ -1134,7 +1229,7 @@ window.customCards.push({
     name: "Trafiklab Departures Card",
     description: "Public transport departures from the Trafiklab integration",
     preview: true,
-    documentationURL: "https://github.com/yourusername/ha-trafiklab-departures-card",
+    documentationURL: "https://github.com/vitords/ha-trafiklab-departures-card",
 });
 console.info(`%c TRAFIKLAB-DEPARTURES-CARD %c v${CARD_VERSION} `, "color: white; background: #1565c0; font-weight: bold;", "color: #1565c0; background: white; font-weight: bold;");
 let TrafiklabDeparturesCard = class TrafiklabDeparturesCard extends i$2 {
@@ -1190,12 +1285,15 @@ let TrafiklabDeparturesCard = class TrafiklabDeparturesCard extends i$2 {
         if (!entity) {
             return b `
         <ha-card>
-          <div style="padding:16px;color:var(--error-color);">
+          ${this._renderHeader()}
+          <div class="state-message error">
             Entity <code>${this._config.entity}</code> not found.
           </div>
         </ha-card>
       `;
         }
+        const state = entity.state;
+        const isUnavailable = state === "unavailable" || state === "unknown";
         const orientation = this._config.orientation ?? DEFAULT_ORIENTATION;
         const theme = this._config.theme;
         const themeStyle = theme ? THEME_STYLES[theme] : undefined;
@@ -1203,15 +1301,17 @@ let TrafiklabDeparturesCard = class TrafiklabDeparturesCard extends i$2 {
       <ha-card>
         ${themeStyle ? b `<style>${themeStyle}</style>` : A}
         ${this._renderHeader()}
-        ${orientation === CardOrientation.HORIZONTAL
-            ? b `
+        ${isUnavailable
+            ? b `<div class="state-message unavailable">Sensor unavailable</div>`
+            : orientation === CardOrientation.HORIZONTAL
+                ? b `
               <trafiklab-content-table
                 .hass=${this.hass}
                 .config=${this._config}
                 .rows=${this._rows}
               ></trafiklab-content-table>
             `
-            : b `
+                : b `
               <trafiklab-content-list
                 .hass=${this.hass}
                 .config=${this._config}

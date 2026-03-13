@@ -28,7 +28,7 @@ import "../editor/departures-card-editor";
   name: "Trafiklab Departures Card",
   description: "Public transport departures from the Trafiklab integration",
   preview: true,
-  documentationURL: "https://github.com/yourusername/ha-trafiklab-departures-card",
+  documentationURL: "https://github.com/vitords/ha-trafiklab-departures-card",
 });
 
 console.info(
@@ -110,12 +110,16 @@ export class TrafiklabDeparturesCard extends LitElement {
     if (!entity) {
       return html`
         <ha-card>
-          <div style="padding:16px;color:var(--error-color);">
+          ${this._renderHeader()}
+          <div class="state-message error">
             Entity <code>${this._config.entity}</code> not found.
           </div>
         </ha-card>
       `;
     }
+
+    const state = entity.state;
+    const isUnavailable = state === "unavailable" || state === "unknown";
 
     const orientation = this._config.orientation ?? DEFAULT_ORIENTATION;
     const theme = this._config.theme;
@@ -125,7 +129,9 @@ export class TrafiklabDeparturesCard extends LitElement {
       <ha-card>
         ${themeStyle ? html`<style>${themeStyle}</style>` : nothing}
         ${this._renderHeader()}
-        ${orientation === CardOrientation.HORIZONTAL
+        ${isUnavailable
+          ? html`<div class="state-message unavailable">Sensor unavailable</div>`
+          : orientation === CardOrientation.HORIZONTAL
           ? html`
               <trafiklab-content-table
                 .hass=${this.hass}

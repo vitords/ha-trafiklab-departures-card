@@ -140,6 +140,17 @@ export const BASE_STYLES = css`
     line-height: 1.4;
   }
 
+  /* State messages */
+  .state-message {
+    padding: 12px 16px;
+    font-size: 0.9em;
+    opacity: 0.7;
+  }
+  .state-message.error {
+    color: var(--error-color, red);
+    opacity: 1;
+  }
+
   /* Footer */
   .card-footer {
     font-size: 0.72em;
