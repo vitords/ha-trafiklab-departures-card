@@ -214,9 +214,8 @@ export class DeparturesCardEditor extends LitElement implements LovelaceCardEdit
         <ha-select
           label="Orientation"
           .value=${this._config.orientation ?? CardOrientation.VERTICAL}
-          @value-changed=${(ev: CustomEvent) =>
-            this._updateConfig({ orientation: ev.detail.value as CardOrientation })}
-          @closed=${(ev: Event) => ev.stopPropagation()}
+          @change=${(ev: Event) =>
+            this._updateConfig({ orientation: (ev.target as any).value as CardOrientation })}
         >
           <mwc-list-item value=${CardOrientation.VERTICAL}>Vertical (list)</mwc-list-item>
           <mwc-list-item value=${CardOrientation.HORIZONTAL}>Horizontal (table)</mwc-list-item>
@@ -224,9 +223,8 @@ export class DeparturesCardEditor extends LitElement implements LovelaceCardEdit
         <ha-select
           label="Theme"
           .value=${this._config.theme ?? CardTheme.BASIC}
-          @value-changed=${(ev: CustomEvent) =>
-            this._updateConfig({ theme: ev.detail.value as CardTheme })}
-          @closed=${(ev: Event) => ev.stopPropagation()}
+          @change=${(ev: Event) =>
+            this._updateConfig({ theme: (ev.target as any).value as CardTheme })}
         >
           <mwc-list-item value=${CardTheme.BASIC}>Basic</mwc-list-item>
           <mwc-list-item value=${CardTheme.BLACK_WHITE}>Black & White</mwc-list-item>
@@ -258,9 +256,10 @@ export class DeparturesCardEditor extends LitElement implements LovelaceCardEdit
         <ha-select
           label="Animation on arrival"
           .value=${this._config.departure_animation ?? "none"}
-          @value-changed=${(ev: CustomEvent) =>
-            this._updateConfig({ departure_animation: ev.detail.value === "none" ? undefined : ev.detail.value })}
-          @closed=${(ev: Event) => ev.stopPropagation()}
+          @change=${(ev: Event) => {
+            const v = (ev.target as any).value;
+            this._updateConfig({ departure_animation: v === "none" ? undefined : v });
+          }}
         >
           <mwc-list-item value="none">None</mwc-list-item>
           <mwc-list-item value="flash">Flash</mwc-list-item>
@@ -352,11 +351,10 @@ export class DeparturesCardEditor extends LitElement implements LovelaceCardEdit
           <ha-select
             label="Transport mode"
             .value=${transportMode}
-            @value-changed=${(ev: CustomEvent) => {
-              const v = ev.detail.value as TransportMode | "";
+            @change=${(ev: Event) => {
+              const v = (ev.target as any).value as TransportMode | "";
               this._updateLineFilter(index, "transport_mode", v || undefined);
             }}
-            @closed=${(ev: Event) => ev.stopPropagation()}
           >
             <mwc-list-item value="">All modes</mwc-list-item>
             <mwc-list-item value="BUS">Bus</mwc-list-item>

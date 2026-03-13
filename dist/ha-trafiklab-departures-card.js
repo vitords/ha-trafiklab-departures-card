@@ -962,8 +962,7 @@ let DeparturesCardEditor = class DeparturesCardEditor extends i$2 {
         <ha-select
           label="Orientation"
           .value=${this._config.orientation ?? CardOrientation.VERTICAL}
-          @value-changed=${(ev) => this._updateConfig({ orientation: ev.detail.value })}
-          @closed=${(ev) => ev.stopPropagation()}
+          @change=${(ev) => this._updateConfig({ orientation: ev.target.value })}
         >
           <mwc-list-item value=${CardOrientation.VERTICAL}>Vertical (list)</mwc-list-item>
           <mwc-list-item value=${CardOrientation.HORIZONTAL}>Horizontal (table)</mwc-list-item>
@@ -971,8 +970,7 @@ let DeparturesCardEditor = class DeparturesCardEditor extends i$2 {
         <ha-select
           label="Theme"
           .value=${this._config.theme ?? CardTheme.BASIC}
-          @value-changed=${(ev) => this._updateConfig({ theme: ev.detail.value })}
-          @closed=${(ev) => ev.stopPropagation()}
+          @change=${(ev) => this._updateConfig({ theme: ev.target.value })}
         >
           <mwc-list-item value=${CardTheme.BASIC}>Basic</mwc-list-item>
           <mwc-list-item value=${CardTheme.BLACK_WHITE}>Black & White</mwc-list-item>
@@ -1003,8 +1001,10 @@ let DeparturesCardEditor = class DeparturesCardEditor extends i$2 {
         <ha-select
           label="Animation on arrival"
           .value=${this._config.departure_animation ?? "none"}
-          @value-changed=${(ev) => this._updateConfig({ departure_animation: ev.detail.value === "none" ? undefined : ev.detail.value })}
-          @closed=${(ev) => ev.stopPropagation()}
+          @change=${(ev) => {
+            const v = ev.target.value;
+            this._updateConfig({ departure_animation: v === "none" ? undefined : v });
+        }}
         >
           <mwc-list-item value="none">None</mwc-list-item>
           <mwc-list-item value="flash">Flash</mwc-list-item>
@@ -1092,11 +1092,10 @@ let DeparturesCardEditor = class DeparturesCardEditor extends i$2 {
           <ha-select
             label="Transport mode"
             .value=${transportMode}
-            @value-changed=${(ev) => {
-            const v = ev.detail.value;
+            @change=${(ev) => {
+            const v = ev.target.value;
             this._updateLineFilter(index, "transport_mode", v || undefined);
         }}
-            @closed=${(ev) => ev.stopPropagation()}
           >
             <mwc-list-item value="">All modes</mwc-list-item>
             <mwc-list-item value="BUS">Bus</mwc-list-item>
