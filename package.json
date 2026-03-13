@@ -1,0 +1,31 @@
+{
+  "name": "ha-trafiklab-departures-card",
+  "version": "1.0.0",
+  "description": "Home Assistant card for Trafiklab departures",
+  "author": "ha-trafiklab-departures-card contributors",
+  "license": "MIT",
+  "scripts": {
+    "build": "rollup -c rollup.config.mjs",
+    "dev": "rollup -c rollup.config.mjs --watch"
+  },
+  "dependencies": {
+    "@mdi/js": "^7.4.47",
+    "@splidejs/splide": "^4.1.4",
+    "custom-card-helpers": "^1.9.0",
+    "date-fns": "^4.1.0",
+    "home-assistant-js-websocket": "^9.4.0",
+    "lit": "^3.3.1",
+    "lodash": "^4.17.21"
+  },
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "^28.0.0",
+    "@rollup/plugin-node-resolve": "^15.3.0",
+    "@rollup/plugin-replace": "^6.0.0",
+    "@rollup/plugin-typescript": "^12.1.0",
+    "@types/lodash": "^4.17.0",
+    "rollup": "^4.22.0",
+    "rollup-plugin-summary": "^2.0.0",
+    "tslib": "^2.7.0",
+    "typescript": "^5.6.0"
+  }
+}
