@@ -80,6 +80,7 @@ export interface Config extends LovelaceCardConfig {
   arrival_time_offset?: number;
   animate_line?: boolean;
   show_realtime_badge?: boolean;
+  animate_target?: AnimateTarget;
   lines?: LineConfig[];
 
   // tap actions
@@ -114,6 +115,13 @@ export enum CardTheme {
 export enum CardOrientation {
   HORIZONTAL = "horizontal",
   VERTICAL = "vertical",
+}
+
+export enum AnimateTarget {
+  ROW      = "row",
+  ICON     = "icon",
+  TIME     = "time",
+  ICON_TIME = "icon-time",
 }
 
 export enum LayoutCell {

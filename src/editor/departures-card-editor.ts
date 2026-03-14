@@ -3,6 +3,7 @@ import { customElement, property, state } from "lit/decorators.js";
 import { HomeAssistant, LovelaceCardEditor } from "custom-card-helpers";
 
 import {
+  AnimateTarget,
   CardOrientation,
   CardTheme,
   Config,
@@ -304,6 +305,17 @@ export class DeparturesCardEditor extends LitElement implements LovelaceCardEdit
             { value: "zoomIn",  label: "Zoom in" },
           ],
           (v) => this._updateConfig({ departure_animation: v === "none" ? undefined : v }),
+        )}
+        ${this._renderSelect(
+          "Animate",
+          this._config.animate_target ?? AnimateTarget.ICON_TIME,
+          [
+            { value: AnimateTarget.ICON_TIME, label: "Icon + countdown" },
+            { value: AnimateTarget.TIME,      label: "Countdown only" },
+            { value: AnimateTarget.ICON,      label: "Icon only" },
+            { value: AnimateTarget.ROW,       label: "Whole row" },
+          ],
+          (v) => this._updateConfig({ animate_target: v as AnimateTarget }),
         )}
         <ha-textfield
           label="Trigger (minutes before departure)"

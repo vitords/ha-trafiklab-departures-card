@@ -86,6 +86,13 @@ var CardOrientation;
     CardOrientation["HORIZONTAL"] = "horizontal";
     CardOrientation["VERTICAL"] = "vertical";
 })(CardOrientation || (CardOrientation = {}));
+var AnimateTarget;
+(function (AnimateTarget) {
+    AnimateTarget["ROW"] = "row";
+    AnimateTarget["ICON"] = "icon";
+    AnimateTarget["TIME"] = "time";
+    AnimateTarget["ICON_TIME"] = "icon-time";
+})(AnimateTarget || (AnimateTarget = {}));
 var LayoutCell;
 (function (LayoutCell) {
     LayoutCell["DELAY"] = "delay";
@@ -650,23 +657,36 @@ class ContentBase extends i$2 {
     _syncAnimations() {
         const type = this.config?.departure_animation;
         const preset = type ? ANIMATION_PRESETS[type] : undefined;
-        this.shadowRoot?.querySelectorAll(".departure-row").forEach((el) => {
-            const shouldAnimate = el.dataset.arriving === "true" && !!preset;
-            if (shouldAnimate) {
-                if (!el._trafiklabAnim) {
-                    const options = { ...preset.options };
-                    const override = this.config.departure_animation_duration;
-                    if (override)
-                        options.duration = override;
-                    el._trafiklabAnim = el.animate(preset.keyframes, options);
+        const animTarget = this.config.animate_target ?? AnimateTarget.ICON_TIME;
+        this.shadowRoot?.querySelectorAll(".departure-row").forEach((row) => {
+            const shouldAnimate = row.dataset.arriving === "true" && !!preset;
+            const targets = animTarget === AnimateTarget.ROW
+                ? [row]
+                : [
+                    animTarget !== AnimateTarget.TIME
+                        ? row.querySelector(".cell-icon")
+                        : null,
+                    animTarget !== AnimateTarget.ICON
+                        ? row.querySelector(".cell-time-diff")
+                        : null,
+                ].filter((el) => el !== null);
+            targets.forEach((el) => {
+                if (shouldAnimate) {
+                    if (!el._trafiklabAnim) {
+                        const options = { ...preset.options };
+                        const override = this.config.departure_animation_duration;
+                        if (override)
+                            options.duration = override;
+                        el._trafiklabAnim = el.animate(preset.keyframes, options);
+                    }
                 }
-            }
-            else {
-                if (el._trafiklabAnim) {
-                    el._trafiklabAnim.cancel();
-                    el._trafiklabAnim = undefined;
+                else {
+                    if (el._trafiklabAnim) {
+                        el._trafiklabAnim.cancel();
+                        el._trafiklabAnim = undefined;
+                    }
                 }
-            }
+            });
         });
     }
     renderListHeader() {
@@ -1004,6 +1024,12 @@ let DeparturesCardEditor = class DeparturesCardEditor extends i$2 {
             { value: "fadeOut", label: "Fade out" },
             { value: "zoomIn", label: "Zoom in" },
         ], (v) => this._updateConfig({ departure_animation: v === "none" ? undefined : v }))}
+        ${this._renderSelect("Animate", this._config.animate_target ?? AnimateTarget.ICON_TIME, [
+            { value: AnimateTarget.ICON_TIME, label: "Icon + countdown" },
+            { value: AnimateTarget.TIME, label: "Countdown only" },
+            { value: AnimateTarget.ICON, label: "Icon only" },
+            { value: AnimateTarget.ROW, label: "Whole row" },
+        ], (v) => this._updateConfig({ animate_target: v }))}
         <ha-textfield
           label="Trigger (minutes before departure)"
           type="number"

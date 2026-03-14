@@ -4,7 +4,7 @@ import { styleMap } from "lit/directives/style-map.js";
 import { classMap } from "lit/directives/class-map.js";
 import { HomeAssistant } from "custom-card-helpers";
 
-import { Config, DeparturesDataRow, LayoutCell } from "../types";
+import { AnimateTarget, Config, DeparturesDataRow, LayoutCell } from "../types";
 import { DEFAULT_LAYOUT, DEFAULT_ARRIVAL_OFFSET } from "../constants";
 import { getContrastTextColor } from "../helpers";
 import { ANIMATION_PRESETS } from "../animate-presets";
@@ -31,22 +31,37 @@ export abstract class ContentBase extends LitElement {
     const type = this.config?.departure_animation;
     const preset = type ? ANIMATION_PRESETS[type] : undefined;
 
-    this.shadowRoot?.querySelectorAll<HTMLElement>(".departure-row").forEach((el) => {
-      const shouldAnimate = el.dataset.arriving === "true" && !!preset;
+    const animTarget = this.config.animate_target ?? AnimateTarget.ICON_TIME;
 
-      if (shouldAnimate) {
-        if (!(el as any)._trafiklabAnim) {
-          const options = { ...preset!.options };
-          const override = this.config.departure_animation_duration;
-          if (override) options.duration = override;
-          (el as any)._trafiklabAnim = el.animate(preset!.keyframes, options);
+    this.shadowRoot?.querySelectorAll<HTMLElement>(".departure-row").forEach((row) => {
+      const shouldAnimate = row.dataset.arriving === "true" && !!preset;
+
+      const targets: HTMLElement[] = animTarget === AnimateTarget.ROW
+        ? [row]
+        : [
+            animTarget !== AnimateTarget.TIME
+              ? row.querySelector<HTMLElement>(".cell-icon")
+              : null,
+            animTarget !== AnimateTarget.ICON
+              ? row.querySelector<HTMLElement>(".cell-time-diff")
+              : null,
+          ].filter((el): el is HTMLElement => el !== null);
+
+      targets.forEach((el) => {
+        if (shouldAnimate) {
+          if (!(el as any)._trafiklabAnim) {
+            const options = { ...preset!.options };
+            const override = this.config.departure_animation_duration;
+            if (override) options.duration = override;
+            (el as any)._trafiklabAnim = el.animate(preset!.keyframes, options);
+          }
+        } else {
+          if ((el as any)._trafiklabAnim) {
+            ((el as any)._trafiklabAnim as Animation).cancel();
+            (el as any)._trafiklabAnim = undefined;
+          }
         }
-      } else {
-        if ((el as any)._trafiklabAnim) {
-          ((el as any)._trafiklabAnim as Animation).cancel();
-          (el as any)._trafiklabAnim = undefined;
-        }
-      }
+      });
     });
   }
 
