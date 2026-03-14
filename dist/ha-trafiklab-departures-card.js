@@ -644,6 +644,31 @@ class ContentBase extends i$2 {
     get gridTemplate() {
         return buildGridTemplate(this.layout);
     }
+    updated() {
+        this._syncAnimations();
+    }
+    _syncAnimations() {
+        const type = this.config?.departure_animation;
+        const preset = type ? ANIMATION_PRESETS[type] : undefined;
+        this.shadowRoot?.querySelectorAll(".departure-row").forEach((el) => {
+            const shouldAnimate = el.dataset.arriving === "true" && !!preset;
+            if (shouldAnimate) {
+                if (!el._trafiklabAnim) {
+                    const options = { ...preset.options };
+                    const override = this.config.departure_animation_duration;
+                    if (override)
+                        options.duration = override;
+                    el._trafiklabAnim = el.animate(preset.keyframes, options);
+                }
+            }
+            else {
+                if (el._trafiklabAnim) {
+                    el._trafiklabAnim.cancel();
+                    el._trafiklabAnim = undefined;
+                }
+            }
+        });
+    }
     renderListHeader() {
         if (!this.config.show_list_header)
             return b `${A}`;
@@ -667,7 +692,6 @@ class ContentBase extends i$2 {
             [LayoutCell.DELAY]: "Delay",
             [LayoutCell.PLATFORM]: "Platform",
         };
-        // Right-align header cells that correspond to right-aligned data cells
         const rightAligned = new Set([
             LayoutCell.TIME_DIFF,
             LayoutCell.PLANNED_TIME,
@@ -680,69 +704,39 @@ class ContentBase extends i$2 {
     renderDepartureRow(row, index) {
         const arrivalOffset = this.config.arrival_time_offset ?? DEFAULT_ARRIVAL_OFFSET;
         const isArriving = row.time.isArriving(arrivalOffset);
-        const animationType = this.config.departure_animation ?? "none";
-        const animDuration = this.config.departure_animation_duration;
-        const rowClasses = { "departure-row": true, canceled: row.canceled };
+        const hasAnimation = !!this.config.departure_animation;
         return b `
       <div
-        class=${e(rowClasses)}
+        class=${e({ "departure-row": true, canceled: row.canceled })}
         style=${o({ gridTemplateColumns: this.gridTemplate })}
         data-index=${index}
-        @animationend=${() => { }}
-        ${isArriving && animationType !== "none" ? this.applyAnimation(animationType, animDuration) : A}
+        data-arriving=${isArriving && hasAnimation ? "true" : "false"}
       >
         ${this.layout.map((cell) => this.renderCell(cell, row))}
       </div>
     `;
     }
-    applyAnimation(type, duration) {
-        return (el) => {
-            const preset = ANIMATION_PRESETS[type];
-            if (!preset || !el)
-                return;
-            const options = { ...preset.options };
-            if (duration)
-                options.duration = duration;
-            el.animate(preset.keyframes, options);
-        };
-    }
     renderCell(cell, row) {
         switch (cell) {
-            case LayoutCell.ICON:
-                return this.renderIconCell(row);
-            case LayoutCell.LINE:
-                return this.renderLineCell(row);
-            case LayoutCell.DESTINATION:
-                return this.renderDestinationCell(row);
-            case LayoutCell.TIME_DIFF:
-                return this.renderTimeDiffCell(row);
-            case LayoutCell.PLANNED_TIME:
-                return this.renderPlannedTimeCell(row);
-            case LayoutCell.ESTIMATED_TIME:
-                return this.renderEstimatedTimeCell(row);
-            case LayoutCell.DELAY:
-                return this.renderDelayCell(row);
-            case LayoutCell.PLATFORM:
-                return this.renderPlatformCell(row);
-            default:
-                return b `<span></span>`;
+            case LayoutCell.ICON: return this.renderIconCell(row);
+            case LayoutCell.LINE: return this.renderLineCell(row);
+            case LayoutCell.DESTINATION: return this.renderDestinationCell(row);
+            case LayoutCell.TIME_DIFF: return this.renderTimeDiffCell(row);
+            case LayoutCell.PLANNED_TIME: return this.renderPlannedTimeCell(row);
+            case LayoutCell.ESTIMATED_TIME: return this.renderEstimatedTimeCell(row);
+            case LayoutCell.DELAY: return this.renderDelayCell(row);
+            case LayoutCell.PLATFORM: return this.renderPlatformCell(row);
+            default: return b `<span></span>`;
         }
     }
     renderIconCell(row) {
-        return b `
-      <span class="cell-icon">
-        <ha-icon .icon=${row.icon ?? "mdi:bus"}></ha-icon>
-      </span>
-    `;
+        return b `<span class="cell-icon"><ha-icon .icon=${row.icon ?? "mdi:bus"}></ha-icon></span>`;
     }
     renderLineCell(row) {
         const color = row.lineColor ?? "#888";
         const textColor = getContrastTextColor(color);
         return b `
-      <span
-        class="cell-line"
-        style=${o({ "--line-color": color, "--line-text-color": textColor })}
-      >
+      <span class="cell-line" style=${o({ "--line-color": color, "--line-text-color": textColor })}>
         <span class="line-badge">${row.lineName ?? "?"}</span>
       </span>
     `;
@@ -772,7 +766,7 @@ class ContentBase extends i$2 {
         return b `<span class="cell-delay ${cls}">${label}</span>`;
     }
     renderPlatformCell(row) {
-        return b `<span class="cell-platform">${row.platform ? `${row.platform}` : ""}</span>`;
+        return b `<span class="cell-platform">${row.platform}</span>`;
     }
 }
 __decorate([

@@ -1,6 +1,5 @@
 import { LitElement, html, nothing, TemplateResult } from "lit";
 import { property } from "lit/decorators.js";
-import { ifDefined } from "lit/directives/if-defined.js";
 import { styleMap } from "lit/directives/style-map.js";
 import { classMap } from "lit/directives/class-map.js";
 import { HomeAssistant } from "custom-card-helpers";
@@ -22,6 +21,33 @@ export abstract class ContentBase extends LitElement {
 
   protected get gridTemplate(): string {
     return buildGridTemplate(this.layout);
+  }
+
+  protected updated(): void {
+    this._syncAnimations();
+  }
+
+  private _syncAnimations(): void {
+    const type = this.config?.departure_animation;
+    const preset = type ? ANIMATION_PRESETS[type] : undefined;
+
+    this.shadowRoot?.querySelectorAll<HTMLElement>(".departure-row").forEach((el) => {
+      const shouldAnimate = el.dataset.arriving === "true" && !!preset;
+
+      if (shouldAnimate) {
+        if (!(el as any)._trafiklabAnim) {
+          const options = { ...preset!.options };
+          const override = this.config.departure_animation_duration;
+          if (override) options.duration = override;
+          (el as any)._trafiklabAnim = el.animate(preset!.keyframes, options);
+        }
+      } else {
+        if ((el as any)._trafiklabAnim) {
+          ((el as any)._trafiklabAnim as Animation).cancel();
+          (el as any)._trafiklabAnim = undefined;
+        }
+      }
+    });
   }
 
   protected renderListHeader(): TemplateResult {
@@ -47,7 +73,6 @@ export abstract class ContentBase extends LitElement {
       [LayoutCell.DELAY]: "Delay",
       [LayoutCell.PLATFORM]: "Platform",
     };
-    // Right-align header cells that correspond to right-aligned data cells
     const rightAligned = new Set([
       LayoutCell.TIME_DIFF,
       LayoutCell.PLANNED_TIME,
@@ -61,73 +86,43 @@ export abstract class ContentBase extends LitElement {
   protected renderDepartureRow(row: DeparturesDataRow, index: number): TemplateResult {
     const arrivalOffset = this.config.arrival_time_offset ?? DEFAULT_ARRIVAL_OFFSET;
     const isArriving = row.time.isArriving(arrivalOffset);
-    const animationType = this.config.departure_animation ?? "none";
-    const animDuration = this.config.departure_animation_duration;
-
-    const rowClasses = { "departure-row": true, canceled: row.canceled };
+    const hasAnimation = !!this.config.departure_animation;
 
     return html`
       <div
-        class=${classMap(rowClasses)}
+        class=${classMap({ "departure-row": true, canceled: row.canceled })}
         style=${styleMap({ gridTemplateColumns: this.gridTemplate })}
         data-index=${index}
-        @animationend=${() => {}}
-        ${isArriving && animationType !== "none" ? this.applyAnimation(animationType, animDuration) : nothing}
+        data-arriving=${isArriving && hasAnimation ? "true" : "false"}
       >
         ${this.layout.map((cell) => this.renderCell(cell as LayoutCell, row))}
       </div>
     `;
   }
 
-  private applyAnimation(type: string, duration?: number) {
-    return (el: Element) => {
-      const preset = ANIMATION_PRESETS[type];
-      if (!preset || !el) return;
-      const options = { ...preset.options };
-      if (duration) options.duration = duration;
-      el.animate(preset.keyframes, options);
-    };
-  }
-
   protected renderCell(cell: LayoutCell, row: DeparturesDataRow): TemplateResult {
     switch (cell) {
-      case LayoutCell.ICON:
-        return this.renderIconCell(row);
-      case LayoutCell.LINE:
-        return this.renderLineCell(row);
-      case LayoutCell.DESTINATION:
-        return this.renderDestinationCell(row);
-      case LayoutCell.TIME_DIFF:
-        return this.renderTimeDiffCell(row);
-      case LayoutCell.PLANNED_TIME:
-        return this.renderPlannedTimeCell(row);
-      case LayoutCell.ESTIMATED_TIME:
-        return this.renderEstimatedTimeCell(row);
-      case LayoutCell.DELAY:
-        return this.renderDelayCell(row);
-      case LayoutCell.PLATFORM:
-        return this.renderPlatformCell(row);
-      default:
-        return html`<span></span>`;
+      case LayoutCell.ICON:        return this.renderIconCell(row);
+      case LayoutCell.LINE:        return this.renderLineCell(row);
+      case LayoutCell.DESTINATION: return this.renderDestinationCell(row);
+      case LayoutCell.TIME_DIFF:   return this.renderTimeDiffCell(row);
+      case LayoutCell.PLANNED_TIME:   return this.renderPlannedTimeCell(row);
+      case LayoutCell.ESTIMATED_TIME: return this.renderEstimatedTimeCell(row);
+      case LayoutCell.DELAY:       return this.renderDelayCell(row);
+      case LayoutCell.PLATFORM:    return this.renderPlatformCell(row);
+      default:                     return html`<span></span>`;
     }
   }
 
   private renderIconCell(row: DeparturesDataRow): TemplateResult {
-    return html`
-      <span class="cell-icon">
-        <ha-icon .icon=${row.icon ?? "mdi:bus"}></ha-icon>
-      </span>
-    `;
+    return html`<span class="cell-icon"><ha-icon .icon=${row.icon ?? "mdi:bus"}></ha-icon></span>`;
   }
 
   private renderLineCell(row: DeparturesDataRow): TemplateResult {
     const color = row.lineColor ?? "#888";
     const textColor = getContrastTextColor(color);
     return html`
-      <span
-        class="cell-line"
-        style=${styleMap({ "--line-color": color, "--line-text-color": textColor })}
-      >
+      <span class="cell-line" style=${styleMap({ "--line-color": color, "--line-text-color": textColor })}>
         <span class="line-badge">${row.lineName ?? "?"}</span>
       </span>
     `;
@@ -163,7 +158,7 @@ export abstract class ContentBase extends LitElement {
   }
 
   private renderPlatformCell(row: DeparturesDataRow): TemplateResult {
-    return html`<span class="cell-platform">${row.platform ? `${row.platform}` : ""}</span>`;
+    return html`<span class="cell-platform">${row.platform}</span>`;
   }
 
   abstract renderContent(): TemplateResult;
