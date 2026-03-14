@@ -9,7 +9,7 @@ export const CELL_WIDTHS: Record<LayoutCell, string> = {
   [LayoutCell.PLANNED_TIME]: "58px",
   [LayoutCell.ESTIMATED_TIME]: "58px",
   [LayoutCell.DELAY]: "52px",
-  [LayoutCell.PLATFORM]: "80px",
+  [LayoutCell.PLATFORM]: "52px",
 };
 
 export function buildGridTemplate(layout: Array<LayoutCell | string>): string {

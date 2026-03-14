@@ -86,7 +86,7 @@ export abstract class ContentBase extends LitElement {
       [LayoutCell.PLANNED_TIME]: "Sched.",
       [LayoutCell.ESTIMATED_TIME]: "Est.",
       [LayoutCell.DELAY]: "Delay",
-      [LayoutCell.PLATFORM]: "Platform",
+      [LayoutCell.PLATFORM]: "Plat.",
     };
     const rightAligned = new Set([
       LayoutCell.TIME_DIFF,
@@ -94,7 +94,12 @@ export abstract class ContentBase extends LitElement {
       LayoutCell.ESTIMATED_TIME,
       LayoutCell.DELAY,
     ]);
-    const style = rightAligned.has(cell as LayoutCell) ? "text-align:right" : "";
+    const centeredAligned = new Set([LayoutCell.PLATFORM]);
+    const style = rightAligned.has(cell as LayoutCell)
+      ? "text-align:right"
+      : centeredAligned.has(cell as LayoutCell)
+      ? "text-align:center"
+      : "";
     return html`<span style=${style}>${labels[cell] ?? cell}</span>`;
   }
 
@@ -173,7 +178,7 @@ export abstract class ContentBase extends LitElement {
   }
 
   private renderPlatformCell(row: DeparturesDataRow): TemplateResult {
-    return html`<span class="cell-platform">${row.platform}</span>`;
+    return html`<span class="cell-platform" style="text-align:center;display:block">${row.platform}</span>`;
   }
 
   abstract renderContent(): TemplateResult;

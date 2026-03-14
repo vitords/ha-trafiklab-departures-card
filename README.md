@@ -9,7 +9,7 @@ A Home Assistant Lovelace card for displaying public transport departures from t
 - Per-group line colors with auto-contrasting text
 - Multiple visual themes
 - Configurable column layout
-- Arrival animations
+- Arrival animations with configurable target (icon, countdown, or whole row)
 - Visual config editor
 
 ## Installation via HACS
@@ -44,8 +44,9 @@ A Home Assistant Lovelace card for displaying public transport departures from t
 | `sort_departures` | boolean | `false` | Sort all departures by time across groups |
 | `layout` | list of column keys | see [Columns](#columns) | Which columns to show and in what order |
 | `departure_animation` | string | none | Animation played on arriving departures — see [Animations](#animations) |
-| `departure_animation_duration` | number | preset | Duration override in milliseconds (0 = use preset default) |
-| `arrival_time_offset` | number | `2` | Minutes before departure to start the animation |
+| `animate_target` | string | `icon-time` | Which part of the row to animate — see [Animations](#animations) |
+| `departure_animation_duration` | number | preset default | Duration override in milliseconds |
+| `arrival_time_offset` | number | `2` | Minutes before departure to trigger the animation |
 | `lines` | list | `[{}]` | Line group definitions — see [Line groups](#line-groups) |
 
 ---
@@ -84,7 +85,7 @@ Available columns:
 | `icon` | Transport mode icon (bus, train, tram…) |
 | `line` | Coloured line badge |
 | `destination` | Destination name |
-| `platform` | Platform or stop number |
+| `platform` | Platform or stop number (centered) |
 | `time-diff` | Countdown: `Now`, `4m`, or `HH:MM` for >60 min |
 | `planned-time` | Scheduled departure time (HH:MM) |
 | `estimated-time` | Estimated departure time (HH:MM) |
@@ -105,6 +106,15 @@ Set `departure_animation` to one of the following values. The animation plays on
 | `fadeIn` | Fade in repeatedly (2 s loop) |
 | `fadeOut` | Fade out repeatedly (2 s loop) |
 | `zoomIn` | Scale up from 50% (2 s loop) |
+
+Use `animate_target` to control which part of the row animates:
+
+| Value | Description |
+|-------|-------------|
+| `icon-time` | Icon and countdown (default) |
+| `time` | Countdown only |
+| `icon` | Icon only |
+| `row` | The entire departure row |
 
 ---
 
@@ -178,7 +188,7 @@ lines:
       destination: Solna
 ```
 
-### Mixed card — buses and trains together with different colors
+### Mixed card — buses and trains with different colors
 
 ```yaml
 type: custom:trafiklab-departures-card
@@ -248,9 +258,14 @@ lines:
 type: custom:trafiklab-departures-card
 entity: sensor.ulriksdal_departures_upcoming_departures
 departure_animation: flash
+animate_target: icon-time   # icon-time | time | icon | row
 arrival_time_offset: 3
+departure_animation_duration: 1500  # ms, omit to use preset default
 lines:
   - line_color: "#c0392b"
     filter:
       transport_mode: BUS
+  - line_color: "#1565c0"
+    filter:
+      transport_mode: TRAIN
 ```

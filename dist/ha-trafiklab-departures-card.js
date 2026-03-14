@@ -632,7 +632,7 @@ const CELL_WIDTHS = {
     [LayoutCell.PLANNED_TIME]: "58px",
     [LayoutCell.ESTIMATED_TIME]: "58px",
     [LayoutCell.DELAY]: "52px",
-    [LayoutCell.PLATFORM]: "80px",
+    [LayoutCell.PLATFORM]: "52px",
 };
 function buildGridTemplate(layout) {
     return layout
@@ -710,7 +710,7 @@ class ContentBase extends i$2 {
             [LayoutCell.PLANNED_TIME]: "Sched.",
             [LayoutCell.ESTIMATED_TIME]: "Est.",
             [LayoutCell.DELAY]: "Delay",
-            [LayoutCell.PLATFORM]: "Platform",
+            [LayoutCell.PLATFORM]: "Plat.",
         };
         const rightAligned = new Set([
             LayoutCell.TIME_DIFF,
@@ -718,7 +718,12 @@ class ContentBase extends i$2 {
             LayoutCell.ESTIMATED_TIME,
             LayoutCell.DELAY,
         ]);
-        const style = rightAligned.has(cell) ? "text-align:right" : "";
+        const centeredAligned = new Set([LayoutCell.PLATFORM]);
+        const style = rightAligned.has(cell)
+            ? "text-align:right"
+            : centeredAligned.has(cell)
+                ? "text-align:center"
+                : "";
         return b `<span style=${style}>${labels[cell] ?? cell}</span>`;
     }
     renderDepartureRow(row, index) {
@@ -786,7 +791,7 @@ class ContentBase extends i$2 {
         return b `<span class="cell-delay ${cls}">${label}</span>`;
     }
     renderPlatformCell(row) {
-        return b `<span class="cell-platform">${row.platform}</span>`;
+        return b `<span class="cell-platform" style="text-align:center;display:block">${row.platform}</span>`;
     }
 }
 __decorate([
