@@ -81,10 +81,10 @@ export class DepartureTime {
     return this.plannedTimeStr();
   }
 
-  /** Human-readable countdown: "Now", "Xm", or "HH:MM" for >60m */
-  timeDiffStr(): string {
+  /** Human-readable countdown: "Now"/"Nu", "Xm", or "HH:MM" for >60m */
+  timeDiffStr(nowStr = "Now"): string {
     const diff = this.timeDiff();
-    if (diff <= 0) return "Now";
+    if (diff <= 0) return nowStr;
     if (diff < 60) return `${diff}m`;
     return this.plannedTimeStr();
   }

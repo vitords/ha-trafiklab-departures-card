@@ -86,6 +86,14 @@ var CardOrientation;
     CardOrientation["HORIZONTAL"] = "horizontal";
     CardOrientation["VERTICAL"] = "vertical";
 })(CardOrientation || (CardOrientation = {}));
+var CanceledStyle;
+(function (CanceledStyle) {
+    CanceledStyle["DIM_STRIKETHROUGH"] = "dim-strikethrough";
+    CanceledStyle["STRIKETHROUGH"] = "strikethrough";
+    CanceledStyle["DIM"] = "dim";
+    CanceledStyle["HIDE"] = "hide";
+    CanceledStyle["LABEL"] = "label";
+})(CanceledStyle || (CanceledStyle = {}));
 var AnimateTarget;
 (function (AnimateTarget) {
     AnimateTarget["ROW"] = "row";
@@ -180,11 +188,11 @@ class DepartureTime {
             return formatHHMM(this._estimated);
         return this.plannedTimeStr();
     }
-    /** Human-readable countdown: "Now", "Xm", or "HH:MM" for >60m */
-    timeDiffStr() {
+    /** Human-readable countdown: "Now"/"Nu", "Xm", or "HH:MM" for >60m */
+    timeDiffStr(nowStr = "Now") {
         const diff = this.timeDiff();
         if (diff <= 0)
-            return "Now";
+            return nowStr;
         if (diff < 60)
             return `${diff}m`;
         return this.plannedTimeStr();
@@ -262,6 +270,7 @@ function parseTrafiklabEntity(entity, config) {
             destination: dep.destination,
             platform: dep.platform ?? "",
             canceled: dep.canceled ?? false,
+            notices: dep.notices ?? [],
             transportMode: dep.transport_mode,
         });
     }
@@ -382,9 +391,35 @@ const BASE_STYLES = i$5 `
     border-bottom: none;
   }
 
-  .departure-row.canceled {
+  /* canceled styles — applied via data-canceled-style attribute on the row */
+  .departure-row.canceled-dim-strikethrough {
     opacity: 0.4;
     text-decoration: line-through;
+  }
+  .departure-row.canceled-strikethrough {
+    text-decoration: line-through;
+  }
+  .departure-row.canceled-dim {
+    opacity: 0.4;
+  }
+  .departure-row.canceled-label .cell-destination::after {
+    content: "CANCELLED";
+    margin-left: 6px;
+    font-size: 0.7em;
+    font-weight: 700;
+    color: var(--error-color, #c0392b);
+    vertical-align: middle;
+    letter-spacing: 0.04em;
+  }
+
+  /* deviation badge */
+  .deviation-badge {
+    --mdc-icon-size: 14px;
+    color: var(--warning-color, #f39c12);
+    margin-left: 4px;
+    vertical-align: middle;
+    cursor: help;
+    flex-shrink: 0;
   }
 
   /* Transport icon */
@@ -546,6 +581,55 @@ class ConfigError extends CardError {
     }
 }
 
+const en = {
+    col: {
+        icon: "Icon",
+        line: "Line",
+        destination: "Destination",
+        time_diff: "In",
+        planned_time: "Sched.",
+        estimated_time: "Est.",
+        delay: "Delay",
+        platform: "Plat.",
+    },
+    time: {
+        now: "Now",
+    },
+    state: {
+        unavailable: "Sensor unavailable",
+        not_found: (entity) => `Entity ${entity} not found.`,
+        updated: (time) => `Updated ${time} · Trafiklab`,
+    },
+};
+
+const sv = {
+    col: {
+        icon: "Ikon",
+        line: "Linje",
+        destination: "Destination",
+        time_diff: "Om",
+        planned_time: "Avg.",
+        estimated_time: "Beräkn.",
+        delay: "Försening",
+        platform: "Spår",
+    },
+    time: {
+        now: "Nu",
+    },
+    state: {
+        unavailable: "Sensor ej tillgänglig",
+        not_found: (entity) => `Entitet ${entity} hittades inte.`,
+        updated: (time) => `Uppdaterad ${time} · Trafiklab`,
+    },
+};
+
+const LOCALES = { en, sv };
+/** Returns the translation bundle for the given HA language code (e.g. "sv", "sv-SE", "en"). */
+function getLocale(language) {
+    const lang = language?.split("-")[0]?.toLowerCase() ?? "en";
+    return LOCALES[lang] ?? en;
+}
+
 /**
  * @license
  * Copyright 2017 Google LLC
@@ -702,15 +786,16 @@ class ContentBase extends i$2 {
     `;
     }
     renderHeaderCell(cell) {
+        const loc = getLocale(this.hass?.language ?? "en");
         const labels = {
             [LayoutCell.ICON]: "",
-            [LayoutCell.LINE]: "Line",
-            [LayoutCell.DESTINATION]: "Destination",
-            [LayoutCell.TIME_DIFF]: "In",
-            [LayoutCell.PLANNED_TIME]: "Sched.",
-            [LayoutCell.ESTIMATED_TIME]: "Est.",
-            [LayoutCell.DELAY]: "Delay",
-            [LayoutCell.PLATFORM]: "Plat.",
+            [LayoutCell.LINE]: loc.col.line,
+            [LayoutCell.DESTINATION]: loc.col.destination,
+            [LayoutCell.TIME_DIFF]: loc.col.time_diff,
+            [LayoutCell.PLANNED_TIME]: loc.col.planned_time,
+            [LayoutCell.ESTIMATED_TIME]: loc.col.estimated_time,
+            [LayoutCell.DELAY]: loc.col.delay,
+            [LayoutCell.PLATFORM]: loc.col.platform,
         };
         const rightAligned = new Set([
             LayoutCell.TIME_DIFF,
@@ -730,9 +815,13 @@ class ContentBase extends i$2 {
         const arrivalOffset = this.config.arrival_time_offset ?? DEFAULT_ARRIVAL_OFFSET;
         const isArriving = row.time.isArriving(arrivalOffset);
         const hasAnimation = !!this.config.departure_animation;
+        const canceledStyle = this.config.canceled_style ?? CanceledStyle.DIM_STRIKETHROUGH;
+        if (row.canceled && canceledStyle === CanceledStyle.HIDE)
+            return b ``;
+        const canceledClass = row.canceled ? `canceled-${canceledStyle}` : "";
         return b `
       <div
-        class=${e({ "departure-row": true, canceled: row.canceled })}
+        class=${e({ "departure-row": true, [canceledClass]: !!canceledClass })}
         style=${o({ gridTemplateColumns: this.gridTemplate })}
         data-index=${index}
         data-arriving=${isArriving && hasAnimation ? "true" : "false"}
@@ -768,15 +857,21 @@ class ContentBase extends i$2 {
     }
     renderDestinationCell(row) {
         const showRtBadge = this.config.show_realtime_badge === true && row.time.realTime;
+        const showDeviationBadge = this.config.show_deviation_badge === true && row.notices.length > 0;
+        const title = showDeviationBadge ? row.notices.join(" | ") : A;
         return b `
       <span class="cell-destination">
         ${row.destination}
         ${showRtBadge ? b `<span class="rt-badge">RT</span>` : A}
+        ${showDeviationBadge
+            ? b `<ha-icon class="deviation-badge" icon="mdi:alert-circle" title=${title}></ha-icon>`
+            : A}
       </span>
     `;
     }
     renderTimeDiffCell(row) {
-        return b `<span class="cell-time-diff">${row.time.timeDiffStr()}</span>`;
+        const nowStr = getLocale(this.hass?.language ?? "en").time.now;
+        return b `<span class="cell-time-diff">${row.time.timeDiffStr(nowStr)}</span>`;
     }
     renderPlannedTimeCell(row) {
         return b `<span class="cell-planned-time">${row.time.plannedTimeStr()}</span>`;
@@ -1012,6 +1107,19 @@ let DeparturesCardEditor = class DeparturesCardEditor extends i$2 {
           <ha-switch
             .checked=${this._config.sort_departures === true}
             @change=${(ev) => this._updateConfig({ sort_departures: ev.target.checked })}
+          ></ha-switch>
+        </ha-formfield>
+        ${this._renderSelect("Canceled departure style", this._config.canceled_style ?? CanceledStyle.DIM_STRIKETHROUGH, [
+            { value: CanceledStyle.DIM_STRIKETHROUGH, label: "Dim + strikethrough (default)" },
+            { value: CanceledStyle.STRIKETHROUGH, label: "Strikethrough only" },
+            { value: CanceledStyle.DIM, label: "Dim only" },
+            { value: CanceledStyle.LABEL, label: "Show CANCELLED label" },
+            { value: CanceledStyle.HIDE, label: "Hide canceled departures" },
+        ], (v) => this._updateConfig({ canceled_style: v }))}
+        <ha-formfield label="Show deviation badge">
+          <ha-switch
+            .checked=${this._config.show_deviation_badge === true}
+            @change=${(ev) => this._updateConfig({ show_deviation_badge: ev.target.checked })}
           ></ha-switch>
         </ha-formfield>
       </div>
@@ -1308,13 +1416,14 @@ let TrafiklabDeparturesCard = class TrafiklabDeparturesCard extends i$2 {
     render() {
         if (!this._config || !this.hass)
             return b ``;
+        const loc = getLocale(this.hass.language);
         const entity = this.hass.states[this._config.entity];
         if (!entity) {
             return b `
         <ha-card>
           ${this._renderHeader()}
           <div class="state-message error">
-            Entity <code>${this._config.entity}</code> not found.
+            ${loc.state.not_found(this._config.entity)}
           </div>
         </ha-card>
       `;
@@ -1329,7 +1438,7 @@ let TrafiklabDeparturesCard = class TrafiklabDeparturesCard extends i$2 {
         ${themeStyle ? b `<style>${themeStyle}</style>` : A}
         ${this._renderHeader()}
         ${isUnavailable
-            ? b `<div class="state-message unavailable">Sensor unavailable</div>`
+            ? b `<div class="state-message unavailable">${loc.state.unavailable}</div>`
             : orientation === CardOrientation.HORIZONTAL
                 ? b `
               <trafiklab-content-table
@@ -1369,8 +1478,9 @@ let TrafiklabDeparturesCard = class TrafiklabDeparturesCard extends i$2 {
             hour: "2-digit",
             minute: "2-digit",
         });
+        const loc = getLocale(this.hass.language);
         return b `
-      <div class="card-footer">Updated ${time} · Trafiklab</div>
+      <div class="card-footer">${loc.state.updated(time)}</div>
     `;
     }
     getCardSize() {

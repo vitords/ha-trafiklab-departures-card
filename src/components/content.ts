@@ -4,11 +4,12 @@ import { styleMap } from "lit/directives/style-map.js";
 import { classMap } from "lit/directives/class-map.js";
 import { HomeAssistant } from "custom-card-helpers";
 
-import { AnimateTarget, Config, DeparturesDataRow, LayoutCell } from "../types";
+import { AnimateTarget, CanceledStyle, Config, DeparturesDataRow, LayoutCell } from "../types";
 import { DEFAULT_LAYOUT, DEFAULT_ARRIVAL_OFFSET } from "../constants";
 import { getContrastTextColor } from "../helpers";
 import { ANIMATION_PRESETS } from "../animate-presets";
 import { buildGridTemplate } from "../data/layout";
+import { getLocale } from "../locales";
 
 export abstract class ContentBase extends LitElement {
   @property({ attribute: false }) hass!: HomeAssistant;
@@ -78,15 +79,16 @@ export abstract class ContentBase extends LitElement {
   }
 
   private renderHeaderCell(cell: LayoutCell | string): TemplateResult {
+    const loc = getLocale(this.hass?.language ?? "en");
     const labels: Record<string, string> = {
-      [LayoutCell.ICON]: "",
-      [LayoutCell.LINE]: "Line",
-      [LayoutCell.DESTINATION]: "Destination",
-      [LayoutCell.TIME_DIFF]: "In",
-      [LayoutCell.PLANNED_TIME]: "Sched.",
-      [LayoutCell.ESTIMATED_TIME]: "Est.",
-      [LayoutCell.DELAY]: "Delay",
-      [LayoutCell.PLATFORM]: "Plat.",
+      [LayoutCell.ICON]:           "",
+      [LayoutCell.LINE]:           loc.col.line,
+      [LayoutCell.DESTINATION]:    loc.col.destination,
+      [LayoutCell.TIME_DIFF]:      loc.col.time_diff,
+      [LayoutCell.PLANNED_TIME]:   loc.col.planned_time,
+      [LayoutCell.ESTIMATED_TIME]: loc.col.estimated_time,
+      [LayoutCell.DELAY]:          loc.col.delay,
+      [LayoutCell.PLATFORM]:       loc.col.platform,
     };
     const rightAligned = new Set([
       LayoutCell.TIME_DIFF,
@@ -108,9 +110,14 @@ export abstract class ContentBase extends LitElement {
     const isArriving = row.time.isArriving(arrivalOffset);
     const hasAnimation = !!this.config.departure_animation;
 
+    const canceledStyle = this.config.canceled_style ?? CanceledStyle.DIM_STRIKETHROUGH;
+    if (row.canceled && canceledStyle === CanceledStyle.HIDE) return html``;
+
+    const canceledClass = row.canceled ? `canceled-${canceledStyle}` : "";
+
     return html`
       <div
-        class=${classMap({ "departure-row": true, canceled: row.canceled })}
+        class=${classMap({ "departure-row": true, [canceledClass]: !!canceledClass })}
         style=${styleMap({ gridTemplateColumns: this.gridTemplate })}
         data-index=${index}
         data-arriving=${isArriving && hasAnimation ? "true" : "false"}
@@ -150,16 +157,22 @@ export abstract class ContentBase extends LitElement {
 
   private renderDestinationCell(row: DeparturesDataRow): TemplateResult {
     const showRtBadge = this.config.show_realtime_badge === true && row.time.realTime;
+    const showDeviationBadge = this.config.show_deviation_badge === true && row.notices.length > 0;
+    const title = showDeviationBadge ? row.notices.join(" | ") : nothing;
     return html`
       <span class="cell-destination">
         ${row.destination}
         ${showRtBadge ? html`<span class="rt-badge">RT</span>` : nothing}
+        ${showDeviationBadge
+          ? html`<ha-icon class="deviation-badge" icon="mdi:alert-circle" title=${title}></ha-icon>`
+          : nothing}
       </span>
     `;
   }
 
   private renderTimeDiffCell(row: DeparturesDataRow): TemplateResult {
-    return html`<span class="cell-time-diff">${row.time.timeDiffStr()}</span>`;
+    const nowStr = getLocale(this.hass?.language ?? "en").time.now;
+    return html`<span class="cell-time-diff">${row.time.timeDiffStr(nowStr)}</span>`;
   }
 
   private renderPlannedTimeCell(row: DeparturesDataRow): TemplateResult {

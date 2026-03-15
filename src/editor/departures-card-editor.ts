@@ -4,6 +4,7 @@ import { HomeAssistant, LovelaceCardEditor } from "custom-card-helpers";
 
 import {
   AnimateTarget,
+  CanceledStyle,
   CardOrientation,
   CardTheme,
   Config,
@@ -284,6 +285,25 @@ export class DeparturesCardEditor extends LitElement implements LovelaceCardEdit
             .checked=${this._config.sort_departures === true}
             @change=${(ev: Event) =>
               this._updateConfig({ sort_departures: (ev.target as HTMLInputElement).checked })}
+          ></ha-switch>
+        </ha-formfield>
+        ${this._renderSelect(
+          "Canceled departure style",
+          this._config.canceled_style ?? CanceledStyle.DIM_STRIKETHROUGH,
+          [
+            { value: CanceledStyle.DIM_STRIKETHROUGH, label: "Dim + strikethrough (default)" },
+            { value: CanceledStyle.STRIKETHROUGH,     label: "Strikethrough only" },
+            { value: CanceledStyle.DIM,               label: "Dim only" },
+            { value: CanceledStyle.LABEL,             label: "Show CANCELLED label" },
+            { value: CanceledStyle.HIDE,              label: "Hide canceled departures" },
+          ],
+          (v) => this._updateConfig({ canceled_style: v as CanceledStyle }),
+        )}
+        <ha-formfield label="Show deviation badge">
+          <ha-switch
+            .checked=${this._config.show_deviation_badge === true}
+            @change=${(ev: Event) =>
+              this._updateConfig({ show_deviation_badge: (ev.target as HTMLInputElement).checked })}
           ></ha-switch>
         </ha-formfield>
       </div>

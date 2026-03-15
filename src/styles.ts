@@ -58,9 +58,35 @@ export const BASE_STYLES = css`
     border-bottom: none;
   }
 
-  .departure-row.canceled {
+  /* canceled styles — applied via data-canceled-style attribute on the row */
+  .departure-row.canceled-dim-strikethrough {
     opacity: 0.4;
     text-decoration: line-through;
+  }
+  .departure-row.canceled-strikethrough {
+    text-decoration: line-through;
+  }
+  .departure-row.canceled-dim {
+    opacity: 0.4;
+  }
+  .departure-row.canceled-label .cell-destination::after {
+    content: "CANCELLED";
+    margin-left: 6px;
+    font-size: 0.7em;
+    font-weight: 700;
+    color: var(--error-color, #c0392b);
+    vertical-align: middle;
+    letter-spacing: 0.04em;
+  }
+
+  /* deviation badge */
+  .deviation-badge {
+    --mdc-icon-size: 14px;
+    color: var(--warning-color, #f39c12);
+    margin-left: 4px;
+    vertical-align: middle;
+    cursor: help;
+    flex-shrink: 0;
   }
 
   /* Transport icon */

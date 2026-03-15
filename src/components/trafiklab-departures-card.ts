@@ -16,6 +16,7 @@ import {
 import { parseTrafiklabEntity } from "../data/trafiklab-parser";
 import { BASE_STYLES, THEME_STYLES } from "../styles";
 import { ConfigError } from "../exceptions";
+import { getLocale } from "../locales";
 
 import "./content-list";
 import "./content-table";
@@ -106,13 +107,14 @@ export class TrafiklabDeparturesCard extends LitElement {
   protected render(): TemplateResult {
     if (!this._config || !this.hass) return html``;
 
+    const loc = getLocale(this.hass.language);
     const entity = this.hass.states[this._config.entity];
     if (!entity) {
       return html`
         <ha-card>
           ${this._renderHeader()}
           <div class="state-message error">
-            Entity <code>${this._config.entity}</code> not found.
+            ${loc.state.not_found(this._config.entity)}
           </div>
         </ha-card>
       `;
@@ -130,7 +132,7 @@ export class TrafiklabDeparturesCard extends LitElement {
         ${themeStyle ? html`<style>${themeStyle}</style>` : nothing}
         ${this._renderHeader()}
         ${isUnavailable
-          ? html`<div class="state-message unavailable">Sensor unavailable</div>`
+          ? html`<div class="state-message unavailable">${loc.state.unavailable}</div>`
           : orientation === CardOrientation.HORIZONTAL
           ? html`
               <trafiklab-content-table
@@ -170,8 +172,9 @@ export class TrafiklabDeparturesCard extends LitElement {
       hour: "2-digit",
       minute: "2-digit",
     });
+    const loc = getLocale(this.hass.language);
     return html`
-      <div class="card-footer">Updated ${time} · Trafiklab</div>
+      <div class="card-footer">${loc.state.updated(time)}</div>
     `;
   }
 

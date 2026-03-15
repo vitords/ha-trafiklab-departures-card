@@ -54,6 +54,7 @@ export function parseTrafiklabEntity(
       destination: dep.destination,
       platform: dep.platform ?? "",
       canceled: dep.canceled ?? false,
+      notices: dep.notices ?? [],
       transportMode: dep.transport_mode as TransportMode,
     });
   }

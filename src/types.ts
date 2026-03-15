@@ -23,6 +23,7 @@ export interface TrafiklabDeparture {
   route_name: string;
   agency: string;
   trip_id: string;
+  notices: string[];
 }
 
 export interface TrafiklabSensorAttributes {
@@ -81,6 +82,8 @@ export interface Config extends LovelaceCardConfig {
   animate_line?: boolean;
   show_realtime_badge?: boolean;
   animate_target?: AnimateTarget;
+  canceled_style?: CanceledStyle;
+  show_deviation_badge?: boolean;
   lines?: LineConfig[];
 
   // tap actions
@@ -99,6 +102,7 @@ export type DeparturesDataRow = {
   destination: string;
   platform: string;
   canceled: boolean;
+  notices: string[];
   transportMode: TransportMode;
 };
 
@@ -115,6 +119,14 @@ export enum CardTheme {
 export enum CardOrientation {
   HORIZONTAL = "horizontal",
   VERTICAL = "vertical",
+}
+
+export enum CanceledStyle {
+  DIM_STRIKETHROUGH = "dim-strikethrough",
+  STRIKETHROUGH     = "strikethrough",
+  DIM               = "dim",
+  HIDE              = "hide",
+  LABEL             = "label",
 }
 
 export enum AnimateTarget {
