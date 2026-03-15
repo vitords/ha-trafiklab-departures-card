@@ -11,7 +11,7 @@ export class DepartureTime {
 
   /** Pre-computed minutes from sensor (snapshot at last sensor update) */
   private readonly _minutesUntil: number | null;
-  /** Pre-computed HH:MM string from sensor for the scheduled time */
+  /** Pre-computed HH:MM string from sensor — derived from realtime_time (or scheduled as fallback) */
   private readonly _timeFormatted: string | null;
   /** Parsed scheduled time, used as fallback for HH:MM display */
   private readonly _planned: Date;
@@ -71,12 +71,14 @@ export class DepartureTime {
 
   /** HH:mm for the scheduled departure */
   plannedTimeStr(): string {
-    if (this._timeFormatted) return this._timeFormatted;
     return formatHHMM(this._planned);
   }
 
-  /** HH:mm for the estimated departure */
+  /** HH:mm for the estimated/realtime departure */
   estimatedTimeStr(): string {
+    // _timeFormatted comes from the sensor's `time_formatted` which is derived
+    // from realtime_time (or scheduled_time as fallback) — i.e. the estimated time.
+    if (this._timeFormatted) return this._timeFormatted;
     if (isValidDate(this._estimated)) return formatHHMM(this._estimated);
     return this.plannedTimeStr();
   }
@@ -86,7 +88,7 @@ export class DepartureTime {
     const diff = this.timeDiff();
     if (diff <= 0) return nowStr;
     if (diff < 60) return `${diff}m`;
-    return this.plannedTimeStr();
+    return this.estimatedTimeStr();
   }
 }
 

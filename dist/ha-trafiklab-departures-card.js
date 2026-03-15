@@ -178,12 +178,14 @@ class DepartureTime {
     }
     /** HH:mm for the scheduled departure */
     plannedTimeStr() {
-        if (this._timeFormatted)
-            return this._timeFormatted;
         return formatHHMM(this._planned);
     }
-    /** HH:mm for the estimated departure */
+    /** HH:mm for the estimated/realtime departure */
     estimatedTimeStr() {
+        // _timeFormatted comes from the sensor's `time_formatted` which is derived
+        // from realtime_time (or scheduled_time as fallback) — i.e. the estimated time.
+        if (this._timeFormatted)
+            return this._timeFormatted;
         if (isValidDate(this._estimated))
             return formatHHMM(this._estimated);
         return this.plannedTimeStr();
@@ -195,7 +197,7 @@ class DepartureTime {
             return nowStr;
         if (diff < 60)
             return `${diff}m`;
-        return this.plannedTimeStr();
+        return this.estimatedTimeStr();
     }
 }
 function isValidDate(d) {
