@@ -85,8 +85,61 @@ export const BASE_STYLES = css`
     color: var(--warning-color, #f39c12);
     margin-left: 4px;
     vertical-align: middle;
-    cursor: help;
+    cursor: pointer;
     flex-shrink: 0;
+    transition: transform 0.15s ease;
+  }
+  .deviation-badge.active {
+    transform: scale(1.25);
+    color: var(--error-color, #e67e22);
+  }
+
+  /* alert panel — shown below a departure row when the badge is tapped */
+  .alert-panel {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 8px 12px;
+    margin: -1px 0 4px 0;
+    background: color-mix(in srgb, var(--warning-color, #f39c12) 12%, transparent);
+    border-left: 3px solid var(--warning-color, #f39c12);
+    border-radius: 0 4px 4px 0;
+    font-size: 0.82em;
+    line-height: 1.4;
+    animation: alertSlideIn 0.15s ease;
+  }
+  @keyframes alertSlideIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .alert-panel-icon {
+    --mdc-icon-size: 16px;
+    color: var(--warning-color, #f39c12);
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .alert-panel-text {
+    flex: 1;
+    color: var(--primary-text-color);
+  }
+  .alert-panel-text div + div {
+    margin-top: 4px;
+    padding-top: 4px;
+    border-top: 1px solid color-mix(in srgb, var(--warning-color, #f39c12) 25%, transparent);
+  }
+  .alert-panel-close {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--secondary-text-color);
+    font-size: 0.9em;
+    padding: 0;
+    line-height: 1;
+    flex-shrink: 0;
+    opacity: 0.6;
+  }
+  .alert-panel-close:hover {
+    opacity: 1;
   }
 
   /* Transport icon */

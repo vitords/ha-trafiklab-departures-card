@@ -420,8 +420,61 @@ const BASE_STYLES = i$5 `
     color: var(--warning-color, #f39c12);
     margin-left: 4px;
     vertical-align: middle;
-    cursor: help;
+    cursor: pointer;
     flex-shrink: 0;
+    transition: transform 0.15s ease;
+  }
+  .deviation-badge.active {
+    transform: scale(1.25);
+    color: var(--error-color, #e67e22);
+  }
+
+  /* alert panel — shown below a departure row when the badge is tapped */
+  .alert-panel {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 8px 12px;
+    margin: -1px 0 4px 0;
+    background: color-mix(in srgb, var(--warning-color, #f39c12) 12%, transparent);
+    border-left: 3px solid var(--warning-color, #f39c12);
+    border-radius: 0 4px 4px 0;
+    font-size: 0.82em;
+    line-height: 1.4;
+    animation: alertSlideIn 0.15s ease;
+  }
+  @keyframes alertSlideIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .alert-panel-icon {
+    --mdc-icon-size: 16px;
+    color: var(--warning-color, #f39c12);
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .alert-panel-text {
+    flex: 1;
+    color: var(--primary-text-color);
+  }
+  .alert-panel-text div + div {
+    margin-top: 4px;
+    padding-top: 4px;
+    border-top: 1px solid color-mix(in srgb, var(--warning-color, #f39c12) 25%, transparent);
+  }
+  .alert-panel-close {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--secondary-text-color);
+    font-size: 0.9em;
+    padding: 0;
+    line-height: 1;
+    flex-shrink: 0;
+    opacity: 0.6;
+  }
+  .alert-panel-close:hover {
+    opacity: 1;
   }
 
   /* Transport icon */
@@ -730,6 +783,7 @@ class ContentBase extends i$2 {
     constructor() {
         super(...arguments);
         this.rows = [];
+        this._activeAlertRow = null;
     }
     get layout() {
         return this.config.layout ?? DEFAULT_LAYOUT;
@@ -821,6 +875,7 @@ class ContentBase extends i$2 {
         if (row.canceled && canceledStyle === CanceledStyle.HIDE)
             return b ``;
         const canceledClass = row.canceled ? `canceled-${canceledStyle}` : "";
+        const alertOpen = this._activeAlertRow === index;
         return b `
       <div
         class=${e({ "departure-row": true, [canceledClass]: !!canceledClass })}
@@ -828,15 +883,24 @@ class ContentBase extends i$2 {
         data-index=${index}
         data-arriving=${isArriving && hasAnimation ? "true" : "false"}
       >
-        ${this.layout.map((cell) => this.renderCell(cell, row))}
+        ${this.layout.map((cell) => this.renderCell(cell, row, index))}
       </div>
+      ${alertOpen && row.notices.length > 0 ? b `
+        <div class="alert-panel">
+          <ha-icon icon="mdi:alert-circle" class="alert-panel-icon"></ha-icon>
+          <div class="alert-panel-text">
+            ${row.notices.map((n) => b `<div>${n}</div>`)}
+          </div>
+          <button class="alert-panel-close" @click=${() => { this._activeAlertRow = null; }}>✕</button>
+        </div>
+      ` : A}
     `;
     }
-    renderCell(cell, row) {
+    renderCell(cell, row, index = 0) {
         switch (cell) {
             case LayoutCell.ICON: return this.renderIconCell(row);
             case LayoutCell.LINE: return this.renderLineCell(row);
-            case LayoutCell.DESTINATION: return this.renderDestinationCell(row);
+            case LayoutCell.DESTINATION: return this.renderDestinationCell(row, index);
             case LayoutCell.TIME_DIFF: return this.renderTimeDiffCell(row);
             case LayoutCell.PLANNED_TIME: return this.renderPlannedTimeCell(row);
             case LayoutCell.ESTIMATED_TIME: return this.renderEstimatedTimeCell(row);
@@ -857,17 +921,25 @@ class ContentBase extends i$2 {
       </span>
     `;
     }
-    renderDestinationCell(row) {
+    renderDestinationCell(row, index) {
         const showRtBadge = this.config.show_realtime_badge === true && row.time.realTime;
         const showDeviationBadge = this.config.show_deviation_badge === true && row.notices.length > 0;
-        const title = showDeviationBadge ? row.notices.join(" | ") : A;
+        const alertOpen = this._activeAlertRow === index;
         return b `
       <span class="cell-destination">
         ${row.destination}
         ${showRtBadge ? b `<span class="rt-badge">RT</span>` : A}
-        ${showDeviationBadge
-            ? b `<ha-icon class="deviation-badge" icon="mdi:alert-circle" title=${title}></ha-icon>`
-            : A}
+        ${showDeviationBadge ? b `
+          <ha-icon
+            class=${e({ "deviation-badge": true, active: alertOpen })}
+            icon="mdi:alert-circle"
+            title=${row.notices.join(" | ")}
+            @click=${(ev) => {
+            ev.stopPropagation();
+            this._activeAlertRow = alertOpen ? null : index;
+        }}
+          ></ha-icon>
+        ` : A}
       </span>
     `;
     }
@@ -900,6 +972,9 @@ __decorate([
 __decorate([
     n$1({ attribute: false })
 ], ContentBase.prototype, "rows", void 0);
+__decorate([
+    r()
+], ContentBase.prototype, "_activeAlertRow", void 0);
 
 let ContentList = class ContentList extends ContentBase {
     renderContent() {
