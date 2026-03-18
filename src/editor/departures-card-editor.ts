@@ -10,6 +10,7 @@ import {
   Config,
   LayoutCell,
   LineConfig,
+  LineFilter,
   TransportMode,
 } from "../types";
 import { CARD_EDITOR_NAME, DEFAULT_DEPARTURES_TO_SHOW, DEFAULT_LAYOUT } from "../constants";
@@ -169,6 +170,24 @@ export class DeparturesCardEditor extends LitElement implements LovelaceCardEdit
     const lines = [...(this._config.lines ?? [])];
     lines.splice(index, 1);
     this._updateConfig({ lines });
+  }
+
+  private _addExclude(): void {
+    const exclude = [...(this._config.exclude ?? [])];
+    exclude.push({});
+    this._updateConfig({ exclude });
+  }
+
+  private _removeExclude(index: number): void {
+    const exclude = [...(this._config.exclude ?? [])];
+    exclude.splice(index, 1);
+    this._updateConfig({ exclude });
+  }
+
+  private _updateExcludeFilter(index: number, key: string, value: unknown): void {
+    const exclude = [...(this._config.exclude ?? [])];
+    exclude[index] = { ...exclude[index], [key]: value || undefined };
+    this._updateConfig({ exclude });
   }
 
   /** Native select that reliably works inside shadow DOM */
@@ -374,12 +393,91 @@ export class DeparturesCardEditor extends LitElement implements LovelaceCardEdit
         })}
       </div>
 
+      <!-- Exclude rules -->
+      <div class="section-title">Exclude</div>
+      <div class="hint" style="margin-bottom:6px">
+        Departures matching any rule here are always hidden — everything else shows up, including future destinations you haven't configured yet.
+      </div>
+      ${(this._config.exclude ?? []).map((f, i) => this._renderExcludeEditor(f, i))}
+      <mwc-button class="add-btn" @click=${this._addExclude}>
+        + Add exclude rule
+      </mwc-button>
+
       <!-- Line groups -->
       <div class="section-title">Line Groups</div>
       ${lines.map((line, i) => this._renderLineEditor(line, i))}
       <mwc-button class="add-btn" @click=${this._addLine}>
         + Add line group
       </mwc-button>
+    `;
+  }
+
+  private _renderExcludeEditor(filter: LineFilter, index: number): TemplateResult {
+    const transportMode = Array.isArray(filter.transport_mode)
+      ? filter.transport_mode[0] ?? ""
+      : filter.transport_mode ?? "";
+
+    return html`
+      <div class="line-card">
+        <div class="line-card-header">
+          <span>Rule ${index + 1}</span>
+          <button class="remove-btn" @click=${() => this._removeExclude(index)}>✕</button>
+        </div>
+        <div class="grid">
+          ${this._renderSelect(
+            "Transport mode",
+            transportMode,
+            [
+              { value: "",       label: "All modes" },
+              { value: "BUS",    label: "Bus" },
+              { value: "TRAIN",  label: "Train" },
+              { value: "METRO",  label: "Metro" },
+              { value: "TRAM",   label: "Tram" },
+              { value: "BOAT",   label: "Boat" },
+              { value: "TAXI",   label: "Taxi" },
+            ],
+            (v) => this._updateExcludeFilter(index, "transport_mode", (v as TransportMode) || undefined),
+          )}
+          <ha-textfield
+            label="Line number(s)"
+            .value=${this._serializeCSV(filter.line)}
+            placeholder="e.g. 7 or 1, 4, 7"
+            @change=${(ev: Event) => {
+              const v = (ev.target as HTMLInputElement).value;
+              this._updateExcludeFilter(index, "line", this._parseCSV(v));
+            }}
+          ></ha-textfield>
+          <ha-textfield
+            label="Destination(s)"
+            .value=${this._serializeCSV(filter.destination)}
+            placeholder="e.g. Arlanda or Arlanda, Märsta"
+            class="full-width"
+            @change=${(ev: Event) => {
+              const v = (ev.target as HTMLInputElement).value;
+              this._updateExcludeFilter(index, "destination", this._parseCSV(v));
+            }}
+          ></ha-textfield>
+          <span class="hint">Comma-separated substrings, any match excluded (OR logic)</span>
+          <ha-textfield
+            label="Platform(s)"
+            .value=${this._serializeCSV(filter.platform)}
+            placeholder="e.g. 3 or 1, 2"
+            @change=${(ev: Event) => {
+              const v = (ev.target as HTMLInputElement).value;
+              this._updateExcludeFilter(index, "platform", this._parseCSV(v));
+            }}
+          ></ha-textfield>
+          <ha-textfield
+            label="Direction"
+            .value=${filter.direction ?? ""}
+            placeholder="e.g. 0 or 1"
+            @change=${(ev: Event) => {
+              const v = (ev.target as HTMLInputElement).value.trim();
+              this._updateExcludeFilter(index, "direction", v || undefined);
+            }}
+          ></ha-textfield>
+        </div>
+      </div>
     `;
   }
 

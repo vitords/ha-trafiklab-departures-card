@@ -26,12 +26,14 @@ export function parseTrafiklabEntity(
   if (!upcoming.length) return [];
 
   const lineConfigs: LineConfig[] = config.lines?.length ? config.lines : [{}];
+  const excludeFilters = config.exclude ?? [];
 
   const rows: DeparturesDataRow[] = [];
 
   for (const dep of upcoming) {
+    if (excludeFilters.some((f) => matchesFilter(dep, f))) continue; // excluded
     const matchedLine = findMatchingLine(dep, lineConfigs);
-    if (!matchedLine) continue; // filtered out
+    if (!matchedLine) continue; // no matching line group
 
     const planned = parseISO(dep.scheduled_time);
     const estimated = dep.expected_time ? parseISO(dep.expected_time) : planned;

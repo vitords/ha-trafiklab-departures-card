@@ -248,11 +248,14 @@ function parseTrafiklabEntity(entity, config) {
     if (!upcoming.length)
         return [];
     const lineConfigs = config.lines?.length ? config.lines : [{}];
+    const excludeFilters = config.exclude ?? [];
     const rows = [];
     for (const dep of upcoming) {
+        if (excludeFilters.some((f) => matchesFilter(dep, f)))
+            continue; // excluded
         const matchedLine = findMatchingLine(dep, lineConfigs);
         if (!matchedLine)
-            continue; // filtered out
+            continue; // no matching line group
         const planned = parseISO(dep.scheduled_time);
         const estimated = dep.expected_time ? parseISO(dep.expected_time) : planned;
         const departureTime = new DepartureTime({
@@ -1095,6 +1098,21 @@ let DeparturesCardEditor = class DeparturesCardEditor extends i$2 {
         lines.splice(index, 1);
         this._updateConfig({ lines });
     }
+    _addExclude() {
+        const exclude = [...(this._config.exclude ?? [])];
+        exclude.push({});
+        this._updateConfig({ exclude });
+    }
+    _removeExclude(index) {
+        const exclude = [...(this._config.exclude ?? [])];
+        exclude.splice(index, 1);
+        this._updateConfig({ exclude });
+    }
+    _updateExcludeFilter(index, key, value) {
+        const exclude = [...(this._config.exclude ?? [])];
+        exclude[index] = { ...exclude[index], [key]: value || undefined };
+        this._updateConfig({ exclude });
+    }
     /** Native select that reliably works inside shadow DOM */
     _renderSelect(label, value, options, onChange) {
         return b `
@@ -1256,12 +1274,84 @@ let DeparturesCardEditor = class DeparturesCardEditor extends i$2 {
         })}
       </div>
 
+      <!-- Exclude rules -->
+      <div class="section-title">Exclude</div>
+      <div class="hint" style="margin-bottom:6px">
+        Departures matching any rule here are always hidden — everything else shows up, including future destinations you haven't configured yet.
+      </div>
+      ${(this._config.exclude ?? []).map((f, i) => this._renderExcludeEditor(f, i))}
+      <mwc-button class="add-btn" @click=${this._addExclude}>
+        + Add exclude rule
+      </mwc-button>
+
       <!-- Line groups -->
       <div class="section-title">Line Groups</div>
       ${lines.map((line, i) => this._renderLineEditor(line, i))}
       <mwc-button class="add-btn" @click=${this._addLine}>
         + Add line group
       </mwc-button>
+    `;
+    }
+    _renderExcludeEditor(filter, index) {
+        const transportMode = Array.isArray(filter.transport_mode)
+            ? filter.transport_mode[0] ?? ""
+            : filter.transport_mode ?? "";
+        return b `
+      <div class="line-card">
+        <div class="line-card-header">
+          <span>Rule ${index + 1}</span>
+          <button class="remove-btn" @click=${() => this._removeExclude(index)}>✕</button>
+        </div>
+        <div class="grid">
+          ${this._renderSelect("Transport mode", transportMode, [
+            { value: "", label: "All modes" },
+            { value: "BUS", label: "Bus" },
+            { value: "TRAIN", label: "Train" },
+            { value: "METRO", label: "Metro" },
+            { value: "TRAM", label: "Tram" },
+            { value: "BOAT", label: "Boat" },
+            { value: "TAXI", label: "Taxi" },
+        ], (v) => this._updateExcludeFilter(index, "transport_mode", v || undefined))}
+          <ha-textfield
+            label="Line number(s)"
+            .value=${this._serializeCSV(filter.line)}
+            placeholder="e.g. 7 or 1, 4, 7"
+            @change=${(ev) => {
+            const v = ev.target.value;
+            this._updateExcludeFilter(index, "line", this._parseCSV(v));
+        }}
+          ></ha-textfield>
+          <ha-textfield
+            label="Destination(s)"
+            .value=${this._serializeCSV(filter.destination)}
+            placeholder="e.g. Arlanda or Arlanda, Märsta"
+            class="full-width"
+            @change=${(ev) => {
+            const v = ev.target.value;
+            this._updateExcludeFilter(index, "destination", this._parseCSV(v));
+        }}
+          ></ha-textfield>
+          <span class="hint">Comma-separated substrings, any match excluded (OR logic)</span>
+          <ha-textfield
+            label="Platform(s)"
+            .value=${this._serializeCSV(filter.platform)}
+            placeholder="e.g. 3 or 1, 2"
+            @change=${(ev) => {
+            const v = ev.target.value;
+            this._updateExcludeFilter(index, "platform", this._parseCSV(v));
+        }}
+          ></ha-textfield>
+          <ha-textfield
+            label="Direction"
+            .value=${filter.direction ?? ""}
+            placeholder="e.g. 0 or 1"
+            @change=${(ev) => {
+            const v = ev.target.value.trim();
+            this._updateExcludeFilter(index, "direction", v || undefined);
+        }}
+          ></ha-textfield>
+        </div>
+      </div>
     `;
     }
     _renderLineEditor(line, index) {

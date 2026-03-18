@@ -84,6 +84,7 @@ export interface Config extends LovelaceCardConfig {
   animate_target?: AnimateTarget;
   canceled_style?: CanceledStyle;
   show_deviation_badge?: boolean;
+  exclude?: LineFilter[];
   lines?: LineConfig[];
 
   // tap actions

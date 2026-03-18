@@ -5,11 +5,14 @@ A Home Assistant Lovelace card for displaying public transport departures from t
 ## Features
 
 - Shows upcoming departures from a single Trafiklab sensor
-- Filter departures by transport mode, line number, destination, platform, or direction
-- Per-group line colors with auto-contrasting text
+- Filter departures into color-coded line groups by transport mode, line number, destination, platform, or direction
+- Exclude specific destinations/lines — everything else shows up automatically, including new routes
+- Configurable column layout (icon, line, destination, platform, countdown, scheduled, estimated, delay)
 - Multiple visual themes
-- Configurable column layout
 - Arrival animations with configurable target (icon, countdown, or whole row)
+- Configurable canceled departure styles
+- Service alert badge with tap-to-expand details (tablet-friendly)
+- Swedish and English localization (auto-detected from HA language setting)
 - Visual config editor
 
 ## Installation via HACS
@@ -41,12 +44,15 @@ A Home Assistant Lovelace card for displaying public transport departures from t
 | `orientation` | `vertical` / `horizontal` | `vertical` | Layout direction |
 | `theme` | string | `basic` | Visual theme — see [Themes](#themes) |
 | `departures_to_show` | number | `5` | Maximum number of departure rows to display |
-| `sort_departures` | boolean | `false` | Sort all departures by time across groups |
+| `sort_departures` | boolean | `false` | Sort all departures by time across line groups |
 | `layout` | list of column keys | see [Columns](#columns) | Which columns to show and in what order |
-| `departure_animation` | string | none | Animation played on arriving departures — see [Animations](#animations) |
+| `departure_animation` | string | none | Animation on arriving departures — see [Animations](#animations) |
 | `animate_target` | string | `icon-time` | Which part of the row to animate — see [Animations](#animations) |
-| `departure_animation_duration` | number | preset default | Duration override in milliseconds |
+| `departure_animation_duration` | number | preset default | Animation duration override in milliseconds |
 | `arrival_time_offset` | number | `2` | Minutes before departure to trigger the animation |
+| `canceled_style` | string | `dim-strikethrough` | How to render canceled departures — see [Canceled styles](#canceled-styles) |
+| `show_deviation_badge` | boolean | `false` | Show a tappable warning badge on departures with service alerts — see [Service alerts](#service-alerts) |
+| `exclude` | list | none | Departures matching any rule are always hidden — see [Exclude rules](#exclude-rules) |
 | `lines` | list | `[{}]` | Line group definitions — see [Line groups](#line-groups) |
 
 ---
@@ -85,10 +91,10 @@ Available columns:
 | `icon` | Transport mode icon (bus, train, tram…) |
 | `line` | Coloured line badge |
 | `destination` | Destination name |
-| `platform` | Platform or stop number (centered) |
+| `platform` | Platform or track number (centered) |
 | `time-diff` | Countdown: `Now`, `4m`, or `HH:MM` for >60 min |
 | `planned-time` | Scheduled departure time (HH:MM) |
-| `estimated-time` | Estimated departure time (HH:MM) |
+| `estimated-time` | Estimated/realtime departure time (HH:MM) |
 | `delay` | Delay in minutes, coloured green/red |
 
 ---
@@ -118,6 +124,49 @@ Use `animate_target` to control which part of the row animates:
 
 ---
 
+### Canceled styles
+
+Use `canceled_style` to control how canceled departures appear:
+
+| Value | Description |
+|-------|-------------|
+| `dim-strikethrough` | Dimmed + strikethrough text (default) |
+| `strikethrough` | Strikethrough text only |
+| `dim` | Dimmed only |
+| `label` | Shows a `CANCELLED` label after the destination |
+| `hide` | Canceled departures are not shown at all |
+
+---
+
+### Service alerts
+
+When `show_deviation_badge: true`, an amber warning icon appears next to the destination for any departure that has service alerts (e.g. changed route, short train, platform changes).
+
+- **Desktop**: hover over the icon to see the alert text in a tooltip
+- **Tablet/touch**: tap the icon to expand an inline alert panel below the row; tap again or press ✕ to close
+
+Requires the [forked Trafiklab integration](https://github.com/vitords/ha-trafiklab-integration-fork) which exposes `alerts` from the API. The upstream integration does not include alert data.
+
+---
+
+### Exclude rules
+
+The `exclude` key is a list of filters. Any departure matching **any** rule is hidden. Everything else shows up automatically — including new destinations or routes that appear in the future without any config change needed.
+
+This is the inverse of line groups: instead of specifying what to show, you specify what to hide.
+
+Each rule supports the same fields as a line group filter:
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `transport_mode` | string or list | `BUS`, `TRAIN`, `METRO`, `TRAM`, `BOAT`, `TAXI` |
+| `line` | string or list | Hide specific line number(s) |
+| `destination` | string or list | Case-insensitive substring(s) — any match hides the departure (OR logic) |
+| `platform` | string or list | Hide departures from specific platform(s) |
+| `direction` | string | Hide by direction value (`"0"` or `"1"`) |
+
+---
+
 ### Line groups
 
 The `lines` key is a list of groups. Each group defines:
@@ -126,7 +175,7 @@ The `lines` key is a list of groups. Each group defines:
 
 Departures are matched to the **first** group whose filter they satisfy. Departures that match no group are hidden.
 
-If `lines` is omitted or empty, all departures are shown in the default color.
+If `lines` is omitted or empty, all non-excluded departures are shown in the default color.
 
 #### Line group options
 
@@ -138,7 +187,7 @@ If `lines` is omitted or empty, all departures are shown in the default color.
 | `filter.transport_mode` | string or list | `BUS`, `TRAIN`, `METRO`, `TRAM`, `BOAT`, `TAXI` |
 | `filter.line` | string or list | Line number(s), e.g. `"7"` or `["1", "4", "7"]` |
 | `filter.destination` | string or list | Case-insensitive substring(s) matched against destination — any match passes (OR logic) |
-| `filter.platform` | string or list | Exact platform/stop number(s), e.g. `"3"` or `["1", "2"]` |
+| `filter.platform` | string or list | Exact platform/track number(s), e.g. `"3"` or `["1", "2"]` |
 | `filter.direction` | string | Direction value from the sensor (`"0"` or `"1"`) |
 
 ---
@@ -196,6 +245,42 @@ entity: sensor.ulriksdal_departures_upcoming_departures
 title: Ulriksdal
 departures_to_show: 10
 sort_departures: true
+lines:
+  - line_color: "#c0392b"
+    filter:
+      transport_mode: BUS
+  - line_color: "#1565c0"
+    filter:
+      transport_mode: TRAIN
+```
+
+### Exclude specific destinations (show everything else automatically)
+
+```yaml
+# Hide Arlanda and Märsta northbound — Tumba or any other new destination
+# will appear automatically without any config change
+type: custom:trafiklab-departures-card
+entity: sensor.ulriksdal_departures_upcoming_departures
+title: Trains (not Arlanda/Märsta)
+exclude:
+  - destination:
+      - Arlanda
+      - Märsta
+lines:
+  - line_color: "#1565c0"
+    filter:
+      transport_mode: TRAIN
+```
+
+### Exclude combined with line groups
+
+```yaml
+type: custom:trafiklab-departures-card
+entity: sensor.ulriksdal_departures_upcoming_departures
+title: Ulriksdal
+exclude:
+  - destination: Arlanda       # always hide Arlanda
+  - destination: Södertälje    # always hide Södertälje
 lines:
   - line_color: "#c0392b"
     filter:
@@ -265,6 +350,19 @@ lines:
   - line_color: "#c0392b"
     filter:
       transport_mode: BUS
+  - line_color: "#1565c0"
+    filter:
+      transport_mode: TRAIN
+```
+
+### Canceled departures and service alerts
+
+```yaml
+type: custom:trafiklab-departures-card
+entity: sensor.ulriksdal_departures_upcoming_departures
+canceled_style: hide          # hide | dim | strikethrough | dim-strikethrough | label
+show_deviation_badge: true    # tap the ⚠ icon to see alert details
+lines:
   - line_color: "#1565c0"
     filter:
       transport_mode: TRAIN
