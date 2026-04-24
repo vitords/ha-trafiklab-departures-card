@@ -54,7 +54,7 @@ export class DepartureTime {
 
   /** HH:mm for the effective departure time (realtime if available, else scheduled) */
   timeStr(): string {
-    return this._timeFormatted ?? "--:--";
+    return this._timeFormatted || "--:--";
   }
 
   /** Human-readable countdown: "Now"/"Nu", "Xm", or "HH:MM" for >60m */

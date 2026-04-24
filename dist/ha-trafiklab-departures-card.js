@@ -137,14 +137,12 @@ const DEFAULT_LAYOUT = [
 /**
  * Wraps a single departure's timing information from the Trafiklab sensor.
  *
- * Prefers pre-computed values from the sensor (`minutesUntil`, `timeFormatted`)
- * over re-parsing ISO timestamps, which avoids timezone ambiguity.
+ * Relies on pre-computed values from the sensor (`minutesUntil`, `timeFormatted`).
+ * The sensor derives `timeFormatted` from realtime time, falling back to scheduled.
  */
 class DepartureTime {
     constructor(opts) {
-        this._planned = opts.planned;
-        this._estimated = opts.estimated;
-        this.delaySeconds = opts.delaySeconds ?? 0;
+        this.delayMinutes = opts.delayMinutes ?? 0;
         this.canceled = opts.canceled ?? false;
         this.realTime = opts.realTime ?? false;
         this._minutesUntil = opts.minutesUntil ?? null;
@@ -157,13 +155,7 @@ class DepartureTime {
             const elapsedMinutes = (Date.now() - this._createdAt) / 60000;
             return Math.round(this._minutesUntil - elapsedMinutes);
         }
-        // Fallback: compute from parsed timestamps
-        const ref = isValidDate(this._estimated) ? this._estimated : this._planned;
-        return Math.round((ref.getTime() - Date.now()) / 60000);
-    }
-    /** Delay in whole minutes */
-    get delayMinutes() {
-        return Math.round(this.delaySeconds / 60);
+        return 0;
     }
     isDelayed() {
         return this.delayMinutes > 0;
@@ -176,19 +168,9 @@ class DepartureTime {
         const diff = this.timeDiff();
         return diff >= 0 && diff <= offsetMinutes;
     }
-    /** HH:mm for the scheduled departure */
-    plannedTimeStr() {
-        return formatHHMM(this._planned);
-    }
-    /** HH:mm for the estimated/realtime departure */
-    estimatedTimeStr() {
-        // _timeFormatted comes from the sensor's `time_formatted` which is derived
-        // from realtime_time (or scheduled_time as fallback) — i.e. the estimated time.
-        if (this._timeFormatted)
-            return this._timeFormatted;
-        if (isValidDate(this._estimated))
-            return formatHHMM(this._estimated);
-        return this.plannedTimeStr();
+    /** HH:mm for the effective departure time (realtime if available, else scheduled) */
+    timeStr() {
+        return this._timeFormatted || "--:--";
     }
     /** Human-readable countdown: "Now"/"Nu", "Xm", or "HH:MM" for >60m */
     timeDiffStr(nowStr = "Now") {
@@ -197,16 +179,8 @@ class DepartureTime {
             return nowStr;
         if (diff < 60)
             return `${diff}m`;
-        return this.estimatedTimeStr();
+        return this.timeStr();
     }
-}
-function isValidDate(d) {
-    return d instanceof Date && !isNaN(d.getTime());
-}
-function formatHHMM(date) {
-    if (!isValidDate(date))
-        return "--:--";
-    return date.toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" });
 }
 
 /** Returns a contrasting text color (black or white) for a given hex background */
@@ -252,16 +226,12 @@ function parseTrafiklabEntity(entity, config) {
     const rows = [];
     for (const dep of upcoming) {
         if (excludeFilters.some((f) => matchesFilter(dep, f)))
-            continue; // excluded
+            continue;
         const matchedLine = findMatchingLine(dep, lineConfigs);
         if (!matchedLine)
-            continue; // no matching line group
-        const planned = parseISO(dep.scheduled_time);
-        const estimated = dep.expected_time ? parseISO(dep.expected_time) : planned;
+            continue;
         const departureTime = new DepartureTime({
-            planned,
-            estimated,
-            delaySeconds: dep.delay ?? 0,
+            delayMinutes: dep.delay_minutes ?? 0,
             canceled: dep.canceled ?? false,
             realTime: dep.real_time ?? false,
             minutesUntil: dep.minutes_until ?? null,
@@ -275,24 +245,22 @@ function parseTrafiklabEntity(entity, config) {
             destination: dep.destination,
             platform: dep.platform ?? "",
             canceled: dep.canceled ?? false,
-            notices: dep.notices ?? [],
+            hasNotices: dep.has_notices ?? false,
             transportMode: dep.transport_mode,
         });
     }
     return rows;
 }
-/** Find the first LineConfig whose filter matches this departure, or null if no match */
 function findMatchingLine(dep, lineConfigs) {
     for (const lc of lineConfigs) {
         if (!lc.filter)
-            return lc; // no filter = match everything
+            return lc;
         if (matchesFilter(dep, lc.filter))
             return lc;
     }
     return null;
 }
 function matchesFilter(dep, filter) {
-    // transport_mode filter
     if (filter.transport_mode !== undefined) {
         const allowed = Array.isArray(filter.transport_mode)
             ? filter.transport_mode.map((m) => m.toUpperCase())
@@ -300,7 +268,6 @@ function matchesFilter(dep, filter) {
         if (!allowed.includes(dep.transport_mode?.toUpperCase()))
             return false;
     }
-    // line number filter
     if (filter.line !== undefined) {
         const allowed = Array.isArray(filter.line)
             ? filter.line.map(String)
@@ -308,7 +275,6 @@ function matchesFilter(dep, filter) {
         if (!allowed.includes(String(dep.line)))
             return false;
     }
-    // destination substring filter — string or array, OR logic (case-insensitive)
     if (filter.destination !== undefined) {
         const dest = dep.destination?.toLowerCase() ?? "";
         const needles = Array.isArray(filter.destination)
@@ -317,7 +283,6 @@ function matchesFilter(dep, filter) {
         if (!needles.some((n) => dest.includes(n.toLowerCase())))
             return false;
     }
-    // platform filter — exact match, string or array
     if (filter.platform !== undefined) {
         const allowed = Array.isArray(filter.platform)
             ? filter.platform.map(String)
@@ -325,18 +290,7 @@ function matchesFilter(dep, filter) {
         if (!allowed.includes(String(dep.platform ?? "")))
             return false;
     }
-    // direction filter
-    if (filter.direction !== undefined) {
-        if (String(dep.direction) !== String(filter.direction))
-            return false;
-    }
     return true;
-}
-function parseISO(isoStr) {
-    if (!isoStr)
-        return new Date(NaN);
-    // Handle both "2025-08-08T14:30:00" and "2025-08-08T14:30:00+02:00"
-    return new Date(isoStr);
 }
 
 const BASE_STYLES = i$5 `
@@ -786,7 +740,6 @@ class ContentBase extends i$2 {
     constructor() {
         super(...arguments);
         this.rows = [];
-        this._activeAlertRow = null;
     }
     get layout() {
         return this.config.layout ?? DEFAULT_LAYOUT;
@@ -878,7 +831,6 @@ class ContentBase extends i$2 {
         if (row.canceled && canceledStyle === CanceledStyle.HIDE)
             return b ``;
         const canceledClass = row.canceled ? `canceled-${canceledStyle}` : "";
-        const alertOpen = this._activeAlertRow === index;
         return b `
       <div
         class=${e({ "departure-row": true, [canceledClass]: !!canceledClass })}
@@ -888,22 +840,13 @@ class ContentBase extends i$2 {
       >
         ${this.layout.map((cell) => this.renderCell(cell, row, index))}
       </div>
-      ${alertOpen && row.notices.length > 0 ? b `
-        <div class="alert-panel">
-          <ha-icon icon="mdi:alert-circle" class="alert-panel-icon"></ha-icon>
-          <div class="alert-panel-text">
-            ${row.notices.map((n) => b `<div>${n}</div>`)}
-          </div>
-          <button class="alert-panel-close" @click=${() => { this._activeAlertRow = null; }}>✕</button>
-        </div>
-      ` : A}
     `;
     }
     renderCell(cell, row, index = 0) {
         switch (cell) {
             case LayoutCell.ICON: return this.renderIconCell(row);
             case LayoutCell.LINE: return this.renderLineCell(row);
-            case LayoutCell.DESTINATION: return this.renderDestinationCell(row, index);
+            case LayoutCell.DESTINATION: return this.renderDestinationCell(row);
             case LayoutCell.TIME_DIFF: return this.renderTimeDiffCell(row);
             case LayoutCell.PLANNED_TIME: return this.renderPlannedTimeCell(row);
             case LayoutCell.ESTIMATED_TIME: return this.renderEstimatedTimeCell(row);
@@ -924,24 +867,15 @@ class ContentBase extends i$2 {
       </span>
     `;
     }
-    renderDestinationCell(row, index) {
+    renderDestinationCell(row) {
         const showRtBadge = this.config.show_realtime_badge === true && row.time.realTime;
-        const showDeviationBadge = this.config.show_deviation_badge === true && row.notices.length > 0;
-        const alertOpen = this._activeAlertRow === index;
+        const showDeviationBadge = this.config.show_deviation_badge === true && row.hasNotices;
         return b `
       <span class="cell-destination">
         ${row.destination}
         ${showRtBadge ? b `<span class="rt-badge">RT</span>` : A}
         ${showDeviationBadge ? b `
-          <ha-icon
-            class=${e({ "deviation-badge": true, active: alertOpen })}
-            icon="mdi:alert-circle"
-            title=${row.notices.join(" | ")}
-            @click=${(ev) => {
-            ev.stopPropagation();
-            this._activeAlertRow = alertOpen ? null : index;
-        }}
-          ></ha-icon>
+          <ha-icon class="deviation-badge" icon="mdi:alert-circle"></ha-icon>
         ` : A}
       </span>
     `;
@@ -951,10 +885,10 @@ class ContentBase extends i$2 {
         return b `<span class="cell-time-diff">${row.time.timeDiffStr(nowStr)}</span>`;
     }
     renderPlannedTimeCell(row) {
-        return b `<span class="cell-planned-time">${row.time.plannedTimeStr()}</span>`;
+        return b `<span class="cell-planned-time">${row.time.timeStr()}</span>`;
     }
     renderEstimatedTimeCell(row) {
-        return b `<span class="cell-estimated-time">${row.time.estimatedTimeStr()}</span>`;
+        return b `<span class="cell-estimated-time">${row.time.timeStr()}</span>`;
     }
     renderDelayCell(row) {
         const dm = row.time.delayMinutes;
@@ -975,9 +909,6 @@ __decorate([
 __decorate([
     n$1({ attribute: false })
 ], ContentBase.prototype, "rows", void 0);
-__decorate([
-    r()
-], ContentBase.prototype, "_activeAlertRow", void 0);
 
 let ContentList = class ContentList extends ContentBase {
     renderContent() {
@@ -1341,15 +1272,6 @@ let DeparturesCardEditor = class DeparturesCardEditor extends i$2 {
             this._updateExcludeFilter(index, "platform", this._parseCSV(v));
         }}
           ></ha-textfield>
-          <ha-textfield
-            label="Direction"
-            .value=${filter.direction ?? ""}
-            placeholder="e.g. 0 or 1"
-            @change=${(ev) => {
-            const v = ev.target.value.trim();
-            this._updateExcludeFilter(index, "direction", v || undefined);
-        }}
-          ></ha-textfield>
         </div>
       </div>
     `;
@@ -1416,15 +1338,6 @@ let DeparturesCardEditor = class DeparturesCardEditor extends i$2 {
             @change=${(ev) => {
             const v = ev.target.value;
             this._updateLineFilter(index, "platform", this._parseCSV(v));
-        }}
-          ></ha-textfield>
-          <ha-textfield
-            label="Direction"
-            .value=${filter.direction ?? ""}
-            placeholder="e.g. 0 or 1"
-            @change=${(ev) => {
-            const v = ev.target.value.trim();
-            this._updateLineFilter(index, "direction", v || undefined);
         }}
           ></ha-textfield>
         </div>

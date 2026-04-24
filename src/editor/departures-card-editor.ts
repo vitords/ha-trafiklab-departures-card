@@ -467,15 +467,6 @@ export class DeparturesCardEditor extends LitElement implements LovelaceCardEdit
               this._updateExcludeFilter(index, "platform", this._parseCSV(v));
             }}
           ></ha-textfield>
-          <ha-textfield
-            label="Direction"
-            .value=${filter.direction ?? ""}
-            placeholder="e.g. 0 or 1"
-            @change=${(ev: Event) => {
-              const v = (ev.target as HTMLInputElement).value.trim();
-              this._updateExcludeFilter(index, "direction", v || undefined);
-            }}
-          ></ha-textfield>
         </div>
       </div>
     `;
@@ -550,15 +541,6 @@ export class DeparturesCardEditor extends LitElement implements LovelaceCardEdit
             @change=${(ev: Event) => {
               const v = (ev.target as HTMLInputElement).value;
               this._updateLineFilter(index, "platform", this._parseCSV(v));
-            }}
-          ></ha-textfield>
-          <ha-textfield
-            label="Direction"
-            .value=${filter.direction ?? ""}
-            placeholder="e.g. 0 or 1"
-            @change=${(ev: Event) => {
-              const v = (ev.target as HTMLInputElement).value.trim();
-              this._updateLineFilter(index, "direction", v || undefined);
             }}
           ></ha-textfield>
         </div>
