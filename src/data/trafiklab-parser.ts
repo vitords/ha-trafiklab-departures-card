@@ -31,17 +31,12 @@ export function parseTrafiklabEntity(
   const rows: DeparturesDataRow[] = [];
 
   for (const dep of upcoming) {
-    if (excludeFilters.some((f) => matchesFilter(dep, f))) continue; // excluded
+    if (excludeFilters.some((f) => matchesFilter(dep, f))) continue;
     const matchedLine = findMatchingLine(dep, lineConfigs);
-    if (!matchedLine) continue; // no matching line group
-
-    const planned = parseISO(dep.scheduled_time);
-    const estimated = dep.expected_time ? parseISO(dep.expected_time) : planned;
+    if (!matchedLine) continue;
 
     const departureTime = new DepartureTime({
-      planned,
-      estimated,
-      delaySeconds: dep.delay ?? 0,
+      delayMinutes: dep.delay_minutes ?? 0,
       canceled: dep.canceled ?? false,
       realTime: dep.real_time ?? false,
       minutesUntil: dep.minutes_until ?? null,
@@ -56,7 +51,7 @@ export function parseTrafiklabEntity(
       destination: dep.destination,
       platform: dep.platform ?? "",
       canceled: dep.canceled ?? false,
-      notices: dep.notices ?? [],
+      hasNotices: dep.has_notices ?? false,
       transportMode: dep.transport_mode as TransportMode,
     });
   }
@@ -64,20 +59,18 @@ export function parseTrafiklabEntity(
   return rows;
 }
 
-/** Find the first LineConfig whose filter matches this departure, or null if no match */
 function findMatchingLine(
   dep: TrafiklabDeparture,
   lineConfigs: LineConfig[],
 ): LineConfig | null {
   for (const lc of lineConfigs) {
-    if (!lc.filter) return lc; // no filter = match everything
+    if (!lc.filter) return lc;
     if (matchesFilter(dep, lc.filter)) return lc;
   }
   return null;
 }
 
 function matchesFilter(dep: TrafiklabDeparture, filter: LineFilter): boolean {
-  // transport_mode filter
   if (filter.transport_mode !== undefined) {
     const allowed = Array.isArray(filter.transport_mode)
       ? filter.transport_mode.map((m) => m.toUpperCase())
@@ -85,7 +78,6 @@ function matchesFilter(dep: TrafiklabDeparture, filter: LineFilter): boolean {
     if (!allowed.includes(dep.transport_mode?.toUpperCase())) return false;
   }
 
-  // line number filter
   if (filter.line !== undefined) {
     const allowed = Array.isArray(filter.line)
       ? filter.line.map(String)
@@ -93,7 +85,6 @@ function matchesFilter(dep: TrafiklabDeparture, filter: LineFilter): boolean {
     if (!allowed.includes(String(dep.line))) return false;
   }
 
-  // destination substring filter — string or array, OR logic (case-insensitive)
   if (filter.destination !== undefined) {
     const dest = dep.destination?.toLowerCase() ?? "";
     const needles = Array.isArray(filter.destination)
@@ -102,7 +93,6 @@ function matchesFilter(dep: TrafiklabDeparture, filter: LineFilter): boolean {
     if (!needles.some((n) => dest.includes(n.toLowerCase()))) return false;
   }
 
-  // platform filter — exact match, string or array
   if (filter.platform !== undefined) {
     const allowed = Array.isArray(filter.platform)
       ? filter.platform.map(String)
@@ -110,16 +100,5 @@ function matchesFilter(dep: TrafiklabDeparture, filter: LineFilter): boolean {
     if (!allowed.includes(String(dep.platform ?? ""))) return false;
   }
 
-  // direction filter
-  if (filter.direction !== undefined) {
-    if (String(dep.direction) !== String(filter.direction)) return false;
-  }
-
   return true;
-}
-
-function parseISO(isoStr: string): Date {
-  if (!isoStr) return new Date(NaN);
-  // Handle both "2025-08-08T14:30:00" and "2025-08-08T14:30:00+02:00"
-  return new Date(isoStr);
 }

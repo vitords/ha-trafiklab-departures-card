@@ -1,37 +1,27 @@
 /**
  * Wraps a single departure's timing information from the Trafiklab sensor.
  *
- * Prefers pre-computed values from the sensor (`minutesUntil`, `timeFormatted`)
- * over re-parsing ISO timestamps, which avoids timezone ambiguity.
+ * Relies on pre-computed values from the sensor (`minutesUntil`, `timeFormatted`).
+ * The sensor derives `timeFormatted` from realtime time, falling back to scheduled.
  */
 export class DepartureTime {
-  readonly delaySeconds: number;
+  readonly delayMinutes: number;
   readonly canceled: boolean;
   readonly realTime: boolean;
 
-  /** Pre-computed minutes from sensor (snapshot at last sensor update) */
   private readonly _minutesUntil: number | null;
-  /** Pre-computed HH:MM string from sensor — derived from realtime_time (or scheduled as fallback) */
   private readonly _timeFormatted: string | null;
-  /** Parsed scheduled time, used as fallback for HH:MM display */
-  private readonly _planned: Date;
-  /** Parsed estimated time, used as fallback for HH:MM display */
-  private readonly _estimated: Date;
   /** Timestamp when this object was created, to age _minutesUntil correctly */
   private readonly _createdAt: number;
 
   constructor(opts: {
-    planned: Date;
-    estimated: Date;
-    delaySeconds?: number;
+    delayMinutes?: number;
     canceled?: boolean;
     realTime?: boolean;
     minutesUntil?: number | null;
     timeFormatted?: string | null;
   }) {
-    this._planned = opts.planned;
-    this._estimated = opts.estimated;
-    this.delaySeconds = opts.delaySeconds ?? 0;
+    this.delayMinutes = opts.delayMinutes ?? 0;
     this.canceled = opts.canceled ?? false;
     this.realTime = opts.realTime ?? false;
     this._minutesUntil = opts.minutesUntil ?? null;
@@ -45,14 +35,7 @@ export class DepartureTime {
       const elapsedMinutes = (Date.now() - this._createdAt) / 60_000;
       return Math.round(this._minutesUntil - elapsedMinutes);
     }
-    // Fallback: compute from parsed timestamps
-    const ref = isValidDate(this._estimated) ? this._estimated : this._planned;
-    return Math.round((ref.getTime() - Date.now()) / 60_000);
-  }
-
-  /** Delay in whole minutes */
-  get delayMinutes(): number {
-    return Math.round(this.delaySeconds / 60);
+    return 0;
   }
 
   isDelayed(): boolean {
@@ -69,18 +52,9 @@ export class DepartureTime {
     return diff >= 0 && diff <= offsetMinutes;
   }
 
-  /** HH:mm for the scheduled departure */
-  plannedTimeStr(): string {
-    return formatHHMM(this._planned);
-  }
-
-  /** HH:mm for the estimated/realtime departure */
-  estimatedTimeStr(): string {
-    // _timeFormatted comes from the sensor's `time_formatted` which is derived
-    // from realtime_time (or scheduled_time as fallback) — i.e. the estimated time.
-    if (this._timeFormatted) return this._timeFormatted;
-    if (isValidDate(this._estimated)) return formatHHMM(this._estimated);
-    return this.plannedTimeStr();
+  /** HH:mm for the effective departure time (realtime if available, else scheduled) */
+  timeStr(): string {
+    return this._timeFormatted ?? "--:--";
   }
 
   /** Human-readable countdown: "Now"/"Nu", "Xm", or "HH:MM" for >60m */
@@ -88,15 +62,6 @@ export class DepartureTime {
     const diff = this.timeDiff();
     if (diff <= 0) return nowStr;
     if (diff < 60) return `${diff}m`;
-    return this.estimatedTimeStr();
+    return this.timeStr();
   }
-}
-
-function isValidDate(d: Date): boolean {
-  return d instanceof Date && !isNaN(d.getTime());
-}
-
-function formatHHMM(date: Date): string {
-  if (!isValidDate(date)) return "--:--";
-  return date.toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" });
 }

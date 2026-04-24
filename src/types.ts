@@ -9,21 +9,17 @@ export interface TrafiklabDeparture {
   index: number;
   line: string;
   destination: string;
-  direction: string;
-  scheduled_time: string;
-  expected_time: string;
   time_formatted: string;
   minutes_until: number | null;
   transport_mode: TransportMode;
   real_time: boolean;
-  delay: number;
   delay_minutes: number;
   canceled: boolean;
   platform: string;
-  route_name: string;
-  agency: string;
+  route_name?: string;
+  agency?: string;
   trip_id: string;
-  notices: string[];
+  has_notices: boolean;
 }
 
 export interface TrafiklabSensorAttributes {
@@ -51,7 +47,6 @@ export interface LineFilter {
   line?: string | string[];
   destination?: string | string[]; // one or more case-insensitive substrings (OR logic)
   platform?: string | string[];    // exact match (or list)
-  direction?: string;
 }
 
 /** A "line group" — a filter + display settings for a set of departures */
@@ -103,7 +98,7 @@ export type DeparturesDataRow = {
   destination: string;
   platform: string;
   canceled: boolean;
-  notices: string[];
+  hasNotices: boolean;
   transportMode: TransportMode;
 };
 

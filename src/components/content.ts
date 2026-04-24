@@ -1,5 +1,5 @@
 import { LitElement, html, nothing, TemplateResult } from "lit";
-import { property, state } from "lit/decorators.js";
+import { property } from "lit/decorators.js";
 import { styleMap } from "lit/directives/style-map.js";
 import { classMap } from "lit/directives/class-map.js";
 import { HomeAssistant } from "custom-card-helpers";
@@ -15,7 +15,7 @@ export abstract class ContentBase extends LitElement {
   @property({ attribute: false }) hass!: HomeAssistant;
   @property({ attribute: false }) config!: Config;
   @property({ attribute: false }) rows: DeparturesDataRow[] = [];
-  @state() private _activeAlertRow: number | null = null;
+
 
   protected get layout(): LayoutCell[] {
     return (this.config.layout as LayoutCell[]) ?? DEFAULT_LAYOUT;
@@ -115,7 +115,6 @@ export abstract class ContentBase extends LitElement {
     if (row.canceled && canceledStyle === CanceledStyle.HIDE) return html``;
 
     const canceledClass = row.canceled ? `canceled-${canceledStyle}` : "";
-    const alertOpen = this._activeAlertRow === index;
 
     return html`
       <div
@@ -126,15 +125,6 @@ export abstract class ContentBase extends LitElement {
       >
         ${this.layout.map((cell) => this.renderCell(cell as LayoutCell, row, index))}
       </div>
-      ${alertOpen && row.notices.length > 0 ? html`
-        <div class="alert-panel">
-          <ha-icon icon="mdi:alert-circle" class="alert-panel-icon"></ha-icon>
-          <div class="alert-panel-text">
-            ${row.notices.map((n) => html`<div>${n}</div>`)}
-          </div>
-          <button class="alert-panel-close" @click=${() => { this._activeAlertRow = null; }}>✕</button>
-        </div>
-      ` : nothing}
     `;
   }
 
@@ -142,7 +132,7 @@ export abstract class ContentBase extends LitElement {
     switch (cell) {
       case LayoutCell.ICON:        return this.renderIconCell(row);
       case LayoutCell.LINE:        return this.renderLineCell(row);
-      case LayoutCell.DESTINATION: return this.renderDestinationCell(row, index);
+      case LayoutCell.DESTINATION: return this.renderDestinationCell(row);
       case LayoutCell.TIME_DIFF:   return this.renderTimeDiffCell(row);
       case LayoutCell.PLANNED_TIME:   return this.renderPlannedTimeCell(row);
       case LayoutCell.ESTIMATED_TIME: return this.renderEstimatedTimeCell(row);
@@ -166,24 +156,15 @@ export abstract class ContentBase extends LitElement {
     `;
   }
 
-  private renderDestinationCell(row: DeparturesDataRow, index: number): TemplateResult {
+  private renderDestinationCell(row: DeparturesDataRow): TemplateResult {
     const showRtBadge = this.config.show_realtime_badge === true && row.time.realTime;
-    const showDeviationBadge = this.config.show_deviation_badge === true && row.notices.length > 0;
-    const alertOpen = this._activeAlertRow === index;
+    const showDeviationBadge = this.config.show_deviation_badge === true && row.hasNotices;
     return html`
       <span class="cell-destination">
         ${row.destination}
         ${showRtBadge ? html`<span class="rt-badge">RT</span>` : nothing}
         ${showDeviationBadge ? html`
-          <ha-icon
-            class=${classMap({ "deviation-badge": true, active: alertOpen })}
-            icon="mdi:alert-circle"
-            title=${row.notices.join(" | ")}
-            @click=${(ev: Event) => {
-              ev.stopPropagation();
-              this._activeAlertRow = alertOpen ? null : index;
-            }}
-          ></ha-icon>
+          <ha-icon class="deviation-badge" icon="mdi:alert-circle"></ha-icon>
         ` : nothing}
       </span>
     `;
@@ -195,11 +176,11 @@ export abstract class ContentBase extends LitElement {
   }
 
   private renderPlannedTimeCell(row: DeparturesDataRow): TemplateResult {
-    return html`<span class="cell-planned-time">${row.time.plannedTimeStr()}</span>`;
+    return html`<span class="cell-planned-time">${row.time.timeStr()}</span>`;
   }
 
   private renderEstimatedTimeCell(row: DeparturesDataRow): TemplateResult {
-    return html`<span class="cell-estimated-time">${row.time.estimatedTimeStr()}</span>`;
+    return html`<span class="cell-estimated-time">${row.time.timeStr()}</span>`;
   }
 
   private renderDelayCell(row: DeparturesDataRow): TemplateResult {
