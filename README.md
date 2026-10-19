@@ -1,6 +1,9 @@
 # ha-trafiklab-departures-card
 
-A Home Assistant Lovelace card for displaying public transport departures from the [Trafiklab integration](https://github.com/MrSjodin/HomeAssistant_Trafiklab_Integration).
+A Home Assistant Lovelace card for displaying public transport departures from the Trafiklab integration.
+
+> [!IMPORTANT]
+> This card is built for my personal fork of the integration, **[vitords/ha-trafiklab](https://github.com/vitords/ha-trafiklab)** (forked from [MrSjodin's original](https://github.com/MrSjodin/HomeAssistant_Trafiklab_Integration)). It relies on the fork's leaner `upcoming` attribute payload and on alert data. It is not tested against the original integration and may not work with it. Not actively maintained.
 
 ## Features
 
@@ -17,7 +20,9 @@ A Home Assistant Lovelace card for displaying public transport departures from t
 
 ## Installation via HACS
 
-1. In HACS → Integrations, add this repository as a custom repository (category: **Dashboard**)
+Install the [Trafiklab integration fork](https://github.com/vitords/ha-trafiklab) first.
+
+1. In HACS, open the ⋮ menu → **Custom repositories** and add `https://github.com/vitords/ha-trafiklab-departures-card` with category **Dashboard**
 2. Install **Trafiklab Departures Card**
 3. Hard-refresh your browser
 
@@ -145,7 +150,7 @@ When `show_deviation_badge: true`, an amber warning icon appears next to the des
 - **Desktop**: hover over the icon to see the alert text in a tooltip
 - **Tablet/touch**: tap the icon to expand an inline alert panel below the row; tap again or press ✕ to close
 
-Requires the [forked Trafiklab integration](https://github.com/vitords/ha-trafiklab-integration-fork) which exposes `alerts` from the API. The upstream integration does not include alert data.
+Requires the [forked Trafiklab integration](https://github.com/vitords/ha-trafiklab) which exposes `alerts` from the API. The upstream integration does not include alert data.
 
 ---
 
@@ -367,3 +372,9 @@ lines:
     filter:
       transport_mode: TRAIN
 ```
+
+---
+
+## License
+
+MIT, see [LICENSE](LICENSE).

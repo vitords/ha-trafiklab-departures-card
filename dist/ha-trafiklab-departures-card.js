@@ -115,7 +115,7 @@ var LayoutCell;
 
 const CARD_NAME = "trafiklab-departures-card";
 const CARD_EDITOR_NAME = "trafiklab-departures-card-editor";
-const CARD_VERSION = "1.0.0";
+const CARD_VERSION = "1.2.0";
 const DEFAULT_TITLE = "Departures";
 const DEFAULT_ICON = "mdi:bus-clock";
 const DEFAULT_LINE_COLOR = "#888888";

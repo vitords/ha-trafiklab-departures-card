@@ -1,8 +1,8 @@
 {
   "name": "ha-trafiklab-departures-card",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "description": "Home Assistant card for Trafiklab departures",
-  "author": "ha-trafiklab-departures-card contributors",
+  "author": "vitords",
   "license": "MIT",
   "scripts": {
     "build": "rollup -c rollup.config.mjs",
@@ -27,5 +27,9 @@
     "rollup-plugin-summary": "^2.0.0",
     "tslib": "^2.7.0",
     "typescript": "^5.6.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vitords/ha-trafiklab-departures-card.git"
   }
 }

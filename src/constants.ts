@@ -2,7 +2,7 @@ import { CardOrientation, CardTheme, LayoutCell } from "./types";
 
 export const CARD_NAME = "trafiklab-departures-card";
 export const CARD_EDITOR_NAME = "trafiklab-departures-card-editor";
-export const CARD_VERSION = "1.0.0";
+export const CARD_VERSION = "1.2.0";
 
 export const DEFAULT_TITLE = "Departures";
 export const DEFAULT_ICON = "mdi:bus-clock";
