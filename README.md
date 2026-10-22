@@ -5,6 +5,8 @@ A Home Assistant Lovelace card for displaying public transport departures from t
 > [!IMPORTANT]
 > This card is built for my personal fork of the integration, **[vitords/ha-trafiklab](https://github.com/vitords/ha-trafiklab)** (forked from [MrSjodin's original](https://github.com/MrSjodin/HomeAssistant_Trafiklab_Integration)). It relies on the fork's leaner `upcoming` attribute payload and on alert data. It is not tested against the original integration and may not work with it. Not actively maintained.
 
+![Trafiklab Departures Card showing buses and trains with a delay, a canceled departure and a service alert badge](docs/screenshot.png)
+
 ## Features
 
 - Shows upcoming departures from a single Trafiklab sensor
