@@ -1,6 +1,7 @@
 import { HassEntity } from "home-assistant-js-websocket";
 import { DepartureTime } from "./departure-time";
 import {
+  CanceledStyle,
   Config,
   DeparturesDataRow,
   LineConfig,
@@ -33,6 +34,7 @@ export function parseTrafiklabEntity(
   const rows: DeparturesDataRow[] = [];
 
   for (const dep of upcoming) {
+    if (dep.canceled && config.canceled_style === CanceledStyle.HIDE) continue;
     if (excludeFilters.some((f) => matchesFilter(dep, f))) continue;
     const matchedLine = findMatchingLine(dep, lineConfigs);
     if (!matchedLine) continue;
@@ -43,6 +45,7 @@ export function parseTrafiklabEntity(
       realTime: dep.real_time ?? false,
       minutesUntil: dep.minutes_until ?? null,
       timeFormatted: dep.time_formatted ?? null,
+      scheduledFormatted: dep.scheduled_formatted ?? null,
       asOf,
     });
     if (departureTime.hasDeparted()) continue;

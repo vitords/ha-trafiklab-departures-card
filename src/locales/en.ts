@@ -14,8 +14,10 @@ export const en = {
   },
   state: {
     unavailable: "Sensor unavailable",
+    no_departures: "No departures",
     not_found:   (entity: string) => `Entity ${entity} not found.`,
     updated:     (time: string)   => `Updated ${time} · Trafiklab`,
+    stale:       (time: string)   => `Data may be out of date · Updated ${time}`,
   },
 };
 

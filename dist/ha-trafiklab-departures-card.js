@@ -115,7 +115,7 @@ var LayoutCell;
 
 const CARD_NAME = "trafiklab-departures-card";
 const CARD_EDITOR_NAME = "trafiklab-departures-card-editor";
-const CARD_VERSION = "1.2.0";
+const CARD_VERSION = "1.9.0";
 const DEFAULT_TITLE = "Departures";
 const DEFAULT_ICON = "mdi:bus-clock";
 const DEFAULT_LINE_COLOR = "#888888";
@@ -124,6 +124,7 @@ CardTheme.BASIC;
 const DEFAULT_DEPARTURES_TO_SHOW = 5;
 const DEFAULT_ARRIVAL_OFFSET = 2;
 const DEFAULT_UPDATE_INTERVAL = 10000; // ms
+const DEFAULT_STALE_AFTER_MINUTES = 30;
 const DEFAULT_LAYOUT = [
     LayoutCell.ICON,
     LayoutCell.LINE,
@@ -151,6 +152,7 @@ class DepartureTime {
         this.realTime = opts.realTime ?? false;
         this._minutesUntil = opts.minutesUntil ?? null;
         this._timeFormatted = opts.timeFormatted ?? null;
+        this._scheduledFormatted = opts.scheduledFormatted ?? null;
         this._asOf = opts.asOf ?? Date.now();
     }
     /** Unrounded minutes until departure, or null when the sensor gave no time */
@@ -188,6 +190,10 @@ class DepartureTime {
     /** HH:mm for the effective departure time (realtime if available, else scheduled) */
     timeStr() {
         return this._timeFormatted || "--:--";
+    }
+    /** HH:mm for the scheduled time; older integrations only send the effective time */
+    scheduledTimeStr() {
+        return this._scheduledFormatted || this.timeStr();
     }
     /** Human-readable countdown: "Now"/"Nu", "Xm", or "HH:MM" for >60m */
     timeDiffStr(nowStr = "Now") {
@@ -244,6 +250,8 @@ function parseTrafiklabEntity(entity, config) {
     const asOf = Number.isNaN(parsedAsOf) ? undefined : parsedAsOf;
     const rows = [];
     for (const dep of upcoming) {
+        if (dep.canceled && config.canceled_style === CanceledStyle.HIDE)
+            continue;
         if (excludeFilters.some((f) => matchesFilter(dep, f)))
             continue;
         const matchedLine = findMatchingLine(dep, lineConfigs);
@@ -255,6 +263,7 @@ function parseTrafiklabEntity(entity, config) {
             realTime: dep.real_time ?? false,
             minutesUntil: dep.minutes_until ?? null,
             timeFormatted: dep.time_formatted ?? null,
+            scheduledFormatted: dep.scheduled_formatted ?? null,
             asOf,
         });
         if (departureTime.hasDeparted())
@@ -551,6 +560,10 @@ const BASE_STYLES = i$5 `
     text-align: right;
     padding: 2px 12px 6px 12px;
   }
+  .card-footer.stale {
+    color: var(--warning-color, #ffa600);
+    opacity: 1;
+  }
 `;
 const THEME_STYLES = {
     [CardTheme.BASIC]: i$5 ``,
@@ -631,8 +644,10 @@ const en = {
     },
     state: {
         unavailable: "Sensor unavailable",
+        no_departures: "No departures",
         not_found: (entity) => `Entity ${entity} not found.`,
         updated: (time) => `Updated ${time} · Trafiklab`,
+        stale: (time) => `Data may be out of date · Updated ${time}`,
     },
 };
 
@@ -652,8 +667,10 @@ const sv = {
     },
     state: {
         unavailable: "Sensor ej tillgänglig",
+        no_departures: "Inga avgångar",
         not_found: (entity) => `Entitet ${entity} hittades inte.`,
         updated: (time) => `Uppdaterad ${time} · Trafiklab`,
+        stale: (time) => `Data kan vara inaktuell · Uppdaterad ${time}`,
     },
 };
 
@@ -850,8 +867,6 @@ class ContentBase extends i$2 {
         const isArriving = row.time.isArriving(arrivalOffset);
         const hasAnimation = !!this.config.departure_animation;
         const canceledStyle = this.config.canceled_style ?? CanceledStyle.DIM_STRIKETHROUGH;
-        if (row.canceled && canceledStyle === CanceledStyle.HIDE)
-            return b ``;
         const canceledClass = row.canceled ? `canceled-${canceledStyle}` : "";
         return b `
       <div
@@ -907,7 +922,7 @@ class ContentBase extends i$2 {
         return b `<span class="cell-time-diff">${row.time.timeDiffStr(nowStr)}</span>`;
     }
     renderPlannedTimeCell(row) {
-        return b `<span class="cell-planned-time">${row.time.timeStr()}</span>`;
+        return b `<span class="cell-planned-time">${row.time.scheduledTimeStr()}</span>`;
     }
     renderEstimatedTimeCell(row) {
         return b `<span class="cell-estimated-time">${row.time.timeStr()}</span>`;
@@ -1149,6 +1164,15 @@ let DeparturesCardEditor = class DeparturesCardEditor extends i$2 {
           @change=${(ev) => {
             const val = parseInt(ev.target.value);
             this._updateConfig({ departures_to_show: isNaN(val) ? DEFAULT_DEPARTURES_TO_SHOW : val });
+        }}
+        ></ha-textfield>
+        <ha-textfield
+          label="Warn when data is older than (minutes, 0 = never)"
+          type="number"
+          .value=${String(this._config.stale_after_minutes ?? DEFAULT_STALE_AFTER_MINUTES)}
+          @change=${(ev) => {
+            const val = parseInt(ev.target.value);
+            this._updateConfig({ stale_after_minutes: isNaN(val) ? DEFAULT_STALE_AFTER_MINUTES : val });
         }}
         ></ha-textfield>
         <ha-formfield label="Sort by time">
@@ -1511,7 +1535,16 @@ let TrafiklabDeparturesCard = class TrafiklabDeparturesCard extends i$2 {
             this._updateTimer = undefined;
         }
     }
-    updated(changed) {
+    /** hass changes on every state change in HA; only this card's sensor matters */
+    shouldUpdate(changed) {
+        if (changed.size !== 1 || !changed.has("hass") || !this._config)
+            return true;
+        const previous = changed.get("hass");
+        return (!previous ||
+            previous.language !== this.hass.language ||
+            previous.states[this._config.entity] !== this.hass.states[this._config.entity]);
+    }
+    willUpdate(changed) {
         if (changed.has("hass") || changed.has("_config")) {
             this._refresh();
         }
@@ -1540,7 +1573,8 @@ let TrafiklabDeparturesCard = class TrafiklabDeparturesCard extends i$2 {
       `;
         }
         const state = entity.state;
-        const isUnavailable = state === "unavailable" || state === "unknown";
+        // The sensor is also "unknown" after a successful fetch with no departures
+        const isUnavailable = state === "unavailable" || (state === "unknown" && !entity.attributes.last_update);
         const orientation = this._config.orientation ?? DEFAULT_ORIENTATION;
         const theme = this._config.theme;
         const themeStyle = theme ? THEME_STYLES[theme] : undefined;
@@ -1550,15 +1584,17 @@ let TrafiklabDeparturesCard = class TrafiklabDeparturesCard extends i$2 {
         ${this._renderHeader()}
         ${isUnavailable
             ? b `<div class="state-message unavailable">${loc.state.unavailable}</div>`
-            : orientation === CardOrientation.HORIZONTAL
-                ? b `
+            : !this._rows.length
+                ? b `<div class="state-message">${loc.state.no_departures}</div>`
+                : orientation === CardOrientation.HORIZONTAL
+                    ? b `
               <trafiklab-content-table
                 .hass=${this.hass}
                 .config=${this._config}
                 .rows=${this._rows}
               ></trafiklab-content-table>
             `
-                : b `
+                    : b `
               <trafiklab-content-list
                 .hass=${this.hass}
                 .config=${this._config}
@@ -1590,9 +1626,16 @@ let TrafiklabDeparturesCard = class TrafiklabDeparturesCard extends i$2 {
             minute: "2-digit",
         });
         const loc = getLocale(this.hass.language);
+        if (this._isStale(lastUpdate)) {
+            return b `<div class="card-footer stale">${loc.state.stale(time)}</div>`;
+        }
         return b `
       <div class="card-footer">${loc.state.updated(time)}</div>
     `;
+    }
+    _isStale(lastUpdate) {
+        const limit = this._config.stale_after_minutes ?? DEFAULT_STALE_AFTER_MINUTES;
+        return limit > 0 && Date.now() - Date.parse(lastUpdate) > limit * 60000;
     }
     getCardSize() {
         const n = this._config?.departures_to_show ?? 5;

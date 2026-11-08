@@ -112,8 +112,6 @@ export abstract class ContentBase extends LitElement {
     const hasAnimation = !!this.config.departure_animation;
 
     const canceledStyle = this.config.canceled_style ?? CanceledStyle.DIM_STRIKETHROUGH;
-    if (row.canceled && canceledStyle === CanceledStyle.HIDE) return html``;
-
     const canceledClass = row.canceled ? `canceled-${canceledStyle}` : "";
 
     return html`
@@ -176,7 +174,7 @@ export abstract class ContentBase extends LitElement {
   }
 
   private renderPlannedTimeCell(row: DeparturesDataRow): TemplateResult {
-    return html`<span class="cell-planned-time">${row.time.timeStr()}</span>`;
+    return html`<span class="cell-planned-time">${row.time.scheduledTimeStr()}</span>`;
   }
 
   private renderEstimatedTimeCell(row: DeparturesDataRow): TemplateResult {

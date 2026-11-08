@@ -11,6 +11,7 @@ import {
   DEFAULT_TITLE,
   DEFAULT_ICON,
   DEFAULT_ORIENTATION,
+  DEFAULT_STALE_AFTER_MINUTES,
   DEFAULT_UPDATE_INTERVAL,
 } from "../constants";
 import { parseTrafiklabEntity } from "../data/trafiklab-parser";
@@ -95,7 +96,18 @@ export class TrafiklabDeparturesCard extends LitElement {
     }
   }
 
-  updated(changed: Map<string, unknown>): void {
+  /** hass changes on every state change in HA; only this card's sensor matters */
+  protected shouldUpdate(changed: Map<string, unknown>): boolean {
+    if (changed.size !== 1 || !changed.has("hass") || !this._config) return true;
+    const previous = changed.get("hass") as HomeAssistant | undefined;
+    return (
+      !previous ||
+      previous.language !== this.hass.language ||
+      previous.states[this._config.entity] !== this.hass.states[this._config.entity]
+    );
+  }
+
+  protected willUpdate(changed: Map<string, unknown>): void {
     if (changed.has("hass") || changed.has("_config")) {
       this._refresh();
     }
@@ -130,7 +142,9 @@ export class TrafiklabDeparturesCard extends LitElement {
     }
 
     const state = entity.state;
-    const isUnavailable = state === "unavailable" || state === "unknown";
+    // The sensor is also "unknown" after a successful fetch with no departures
+    const isUnavailable =
+      state === "unavailable" || (state === "unknown" && !entity.attributes.last_update);
 
     const orientation = this._config.orientation ?? DEFAULT_ORIENTATION;
     const theme = this._config.theme;
@@ -142,6 +156,8 @@ export class TrafiklabDeparturesCard extends LitElement {
         ${this._renderHeader()}
         ${isUnavailable
           ? html`<div class="state-message unavailable">${loc.state.unavailable}</div>`
+          : !this._rows.length
+          ? html`<div class="state-message">${loc.state.no_departures}</div>`
           : orientation === CardOrientation.HORIZONTAL
           ? html`
               <trafiklab-content-table
@@ -182,9 +198,17 @@ export class TrafiklabDeparturesCard extends LitElement {
       minute: "2-digit",
     });
     const loc = getLocale(this.hass.language);
+    if (this._isStale(lastUpdate)) {
+      return html`<div class="card-footer stale">${loc.state.stale(time)}</div>`;
+    }
     return html`
       <div class="card-footer">${loc.state.updated(time)}</div>
     `;
+  }
+
+  private _isStale(lastUpdate: string): boolean {
+    const limit = this._config.stale_after_minutes ?? DEFAULT_STALE_AFTER_MINUTES;
+    return limit > 0 && Date.now() - Date.parse(lastUpdate) > limit * 60_000;
   }
 
   getCardSize(): number {

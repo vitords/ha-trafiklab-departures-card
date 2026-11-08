@@ -52,6 +52,7 @@ Install the [Trafiklab integration fork](https://github.com/vitords/ha-trafiklab
 | `theme` | string | `basic` | Visual theme — see [Themes](#themes) |
 | `departures_to_show` | number | `5` | Maximum number of departure rows to display |
 | `sort_departures` | boolean | `false` | Sort all departures by time across line groups |
+| `stale_after_minutes` | number | `30` | Show a warning in the footer when the data is older than this. Set it above the integration's refresh interval; `0` turns the warning off |
 | `layout` | list of column keys | see [Columns](#columns) | Which columns to show and in what order |
 | `departure_animation` | string | none | Animation on arriving departures — see [Animations](#animations) |
 | `animate_target` | string | `icon-time` | Which part of the row to animate — see [Animations](#animations) |

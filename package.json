@@ -1,6 +1,6 @@
 {
   "name": "ha-trafiklab-departures-card",
-  "version": "1.2.0",
+  "version": "1.9.0",
   "description": "Home Assistant card for Trafiklab departures",
   "author": "vitords",
   "license": "MIT",

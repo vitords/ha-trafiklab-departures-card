@@ -13,7 +13,12 @@ import {
   LineFilter,
   TransportMode,
 } from "../types";
-import { CARD_EDITOR_NAME, DEFAULT_DEPARTURES_TO_SHOW, DEFAULT_LAYOUT } from "../constants";
+import {
+  CARD_EDITOR_NAME,
+  DEFAULT_DEPARTURES_TO_SHOW,
+  DEFAULT_LAYOUT,
+  DEFAULT_STALE_AFTER_MINUTES,
+} from "../constants";
 
 const ALL_COLUMNS: { cell: LayoutCell; label: string }[] = [
   { cell: LayoutCell.ICON,           label: "Icon" },
@@ -297,6 +302,15 @@ export class DeparturesCardEditor extends LitElement implements LovelaceCardEdit
           @change=${(ev: Event) => {
             const val = parseInt((ev.target as HTMLInputElement).value);
             this._updateConfig({ departures_to_show: isNaN(val) ? DEFAULT_DEPARTURES_TO_SHOW : val });
+          }}
+        ></ha-textfield>
+        <ha-textfield
+          label="Warn when data is older than (minutes, 0 = never)"
+          type="number"
+          .value=${String(this._config.stale_after_minutes ?? DEFAULT_STALE_AFTER_MINUTES)}
+          @change=${(ev: Event) => {
+            const val = parseInt((ev.target as HTMLInputElement).value);
+            this._updateConfig({ stale_after_minutes: isNaN(val) ? DEFAULT_STALE_AFTER_MINUTES : val });
           }}
         ></ha-textfield>
         <ha-formfield label="Sort by time">

@@ -15,6 +15,7 @@ export class DepartureTime {
 
   private readonly _minutesUntil: number | null;
   private readonly _timeFormatted: string | null;
+  private readonly _scheduledFormatted: string | null;
   /** Timestamp (ms) at which _minutesUntil was computed */
   private readonly _asOf: number;
 
@@ -24,6 +25,7 @@ export class DepartureTime {
     realTime?: boolean;
     minutesUntil?: number | null;
     timeFormatted?: string | null;
+    scheduledFormatted?: string | null;
     asOf?: number;
   }) {
     this.delayMinutes = opts.delayMinutes ?? 0;
@@ -31,6 +33,7 @@ export class DepartureTime {
     this.realTime = opts.realTime ?? false;
     this._minutesUntil = opts.minutesUntil ?? null;
     this._timeFormatted = opts.timeFormatted ?? null;
+    this._scheduledFormatted = opts.scheduledFormatted ?? null;
     this._asOf = opts.asOf ?? Date.now();
   }
 
@@ -74,6 +77,11 @@ export class DepartureTime {
   /** HH:mm for the effective departure time (realtime if available, else scheduled) */
   timeStr(): string {
     return this._timeFormatted || "--:--";
+  }
+
+  /** HH:mm for the scheduled time; older integrations only send the effective time */
+  scheduledTimeStr(): string {
+    return this._scheduledFormatted || this.timeStr();
   }
 
   /** Human-readable countdown: "Now"/"Nu", "Xm", or "HH:MM" for >60m */

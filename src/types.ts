@@ -10,6 +10,7 @@ export interface TrafiklabDeparture {
   line: string;
   destination: string;
   time_formatted: string;
+  scheduled_formatted?: string; // missing on integration versions before it was added
   minutes_until: number | null;
   transport_mode: TransportMode;
   real_time: boolean;
@@ -69,6 +70,7 @@ export interface Config extends LovelaceCardConfig {
   layout?: Array<LayoutCell | string>;
   departures_to_show?: number;
   sort_departures?: boolean;
+  stale_after_minutes?: number;
   show_scroll_buttons?: boolean;
   scroll_back_timeout?: number;
   departure_animation?: string;

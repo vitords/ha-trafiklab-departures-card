@@ -14,7 +14,9 @@ export const sv = {
   },
   state: {
     unavailable: "Sensor ej tillgänglig",
+    no_departures: "Inga avgångar",
     not_found:   (entity: string) => `Entitet ${entity} hittades inte.`,
     updated:     (time: string)   => `Uppdaterad ${time} · Trafiklab`,
+    stale:       (time: string)   => `Data kan vara inaktuell · Uppdaterad ${time}`,
   },
 };

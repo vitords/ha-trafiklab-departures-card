@@ -237,6 +237,10 @@ export const BASE_STYLES = css`
     text-align: right;
     padding: 2px 12px 6px 12px;
   }
+  .card-footer.stale {
+    color: var(--warning-color, #ffa600);
+    opacity: 1;
+  }
 `;
 
 export const THEME_STYLES: Record<CardTheme, ReturnType<typeof css>> = {
