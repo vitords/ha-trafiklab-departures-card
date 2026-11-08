@@ -3,6 +3,10 @@
  *
  * Relies on pre-computed values from the sensor (`minutesUntil`, `timeFormatted`).
  * The sensor derives `timeFormatted` from realtime time, falling back to scheduled.
+ *
+ * `minutesUntil` is only correct at the moment the sensor state was written, so it
+ * is aged from `asOf` (the state's `last_updated`). Rows get rebuilt every few
+ * seconds, so this must not be the time the object was created.
  */
 export class DepartureTime {
   readonly delayMinutes: number;
@@ -11,8 +15,8 @@ export class DepartureTime {
 
   private readonly _minutesUntil: number | null;
   private readonly _timeFormatted: string | null;
-  /** Timestamp when this object was created, to age _minutesUntil correctly */
-  private readonly _createdAt: number;
+  /** Timestamp (ms) at which _minutesUntil was computed */
+  private readonly _asOf: number;
 
   constructor(opts: {
     delayMinutes?: number;
@@ -20,22 +24,37 @@ export class DepartureTime {
     realTime?: boolean;
     minutesUntil?: number | null;
     timeFormatted?: string | null;
+    asOf?: number;
   }) {
     this.delayMinutes = opts.delayMinutes ?? 0;
     this.canceled = opts.canceled ?? false;
     this.realTime = opts.realTime ?? false;
     this._minutesUntil = opts.minutesUntil ?? null;
     this._timeFormatted = opts.timeFormatted ?? null;
-    this._createdAt = Date.now();
+    this._asOf = opts.asOf ?? Date.now();
   }
 
-  /** Minutes until departure, aged from when the object was created */
+  /** Unrounded minutes until departure, or null when the sensor gave no time */
+  private _exactDiff(): number | null {
+    if (this._minutesUntil === null) return null;
+    // Clamp so a tablet clock running behind HA can't add time to the countdown
+    const elapsedMinutes = Math.max(0, Date.now() - this._asOf) / 60_000;
+    return this._minutesUntil - elapsedMinutes;
+  }
+
+  /** Minutes until departure, aged from when the sensor computed it */
   timeDiff(): number {
-    if (this._minutesUntil !== null) {
-      const elapsedMinutes = (Date.now() - this._createdAt) / 60_000;
-      return Math.round(this._minutesUntil - elapsedMinutes);
-    }
-    return 0;
+    const diff = this._exactDiff();
+    return diff === null ? 0 : Math.round(diff);
+  }
+
+  /**
+   * True once the departure is over a minute past. The sensor truncates
+   * `minutes_until`, so anything sooner may not have left yet.
+   */
+  hasDeparted(): boolean {
+    const diff = this._exactDiff();
+    return diff !== null && diff < -1;
   }
 
   isDelayed(): boolean {

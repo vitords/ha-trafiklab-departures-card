@@ -139,6 +139,10 @@ const DEFAULT_LAYOUT = [
  *
  * Relies on pre-computed values from the sensor (`minutesUntil`, `timeFormatted`).
  * The sensor derives `timeFormatted` from realtime time, falling back to scheduled.
+ *
+ * `minutesUntil` is only correct at the moment the sensor state was written, so it
+ * is aged from `asOf` (the state's `last_updated`). Rows get rebuilt every few
+ * seconds, so this must not be the time the object was created.
  */
 class DepartureTime {
     constructor(opts) {
@@ -147,15 +151,28 @@ class DepartureTime {
         this.realTime = opts.realTime ?? false;
         this._minutesUntil = opts.minutesUntil ?? null;
         this._timeFormatted = opts.timeFormatted ?? null;
-        this._createdAt = Date.now();
+        this._asOf = opts.asOf ?? Date.now();
     }
-    /** Minutes until departure, aged from when the object was created */
+    /** Unrounded minutes until departure, or null when the sensor gave no time */
+    _exactDiff() {
+        if (this._minutesUntil === null)
+            return null;
+        // Clamp so a tablet clock running behind HA can't add time to the countdown
+        const elapsedMinutes = Math.max(0, Date.now() - this._asOf) / 60000;
+        return this._minutesUntil - elapsedMinutes;
+    }
+    /** Minutes until departure, aged from when the sensor computed it */
     timeDiff() {
-        if (this._minutesUntil !== null) {
-            const elapsedMinutes = (Date.now() - this._createdAt) / 60000;
-            return Math.round(this._minutesUntil - elapsedMinutes);
-        }
-        return 0;
+        const diff = this._exactDiff();
+        return diff === null ? 0 : Math.round(diff);
+    }
+    /**
+     * True once the departure is over a minute past. The sensor truncates
+     * `minutes_until`, so anything sooner may not have left yet.
+     */
+    hasDeparted() {
+        const diff = this._exactDiff();
+        return diff !== null && diff < -1;
     }
     isDelayed() {
         return this.delayMinutes > 0;
@@ -223,6 +240,8 @@ function parseTrafiklabEntity(entity, config) {
         return [];
     const lineConfigs = config.lines?.length ? config.lines : [{}];
     const excludeFilters = config.exclude ?? [];
+    const parsedAsOf = Date.parse(entity.last_updated);
+    const asOf = Number.isNaN(parsedAsOf) ? undefined : parsedAsOf;
     const rows = [];
     for (const dep of upcoming) {
         if (excludeFilters.some((f) => matchesFilter(dep, f)))
@@ -236,7 +255,10 @@ function parseTrafiklabEntity(entity, config) {
             realTime: dep.real_time ?? false,
             minutesUntil: dep.minutes_until ?? null,
             timeFormatted: dep.time_formatted ?? null,
+            asOf,
         });
+        if (departureTime.hasDeparted())
+            continue;
         rows.push({
             time: departureTime,
             lineColor: matchedLine.line_color ?? DEFAULT_LINE_COLOR,
@@ -1451,6 +1473,11 @@ let TrafiklabDeparturesCard = class TrafiklabDeparturesCard extends i$2 {
     constructor() {
         super(...arguments);
         this._rows = [];
+        /** Timers are paused while the screen is off; don't wait for the next tick on wake */
+        this._onVisibilityChange = () => {
+            if (!document.hidden)
+                this._refresh();
+        };
     }
     static async getConfigElement() {
         return document.createElement(CARD_EDITOR_NAME);
@@ -1471,10 +1498,14 @@ let TrafiklabDeparturesCard = class TrafiklabDeparturesCard extends i$2 {
     }
     connectedCallback() {
         super.connectedCallback();
+        // HA detaches the panel while hidden; hass may be unchanged on reattach
+        this._refresh();
         this._updateTimer = setInterval(() => this._refresh(), DEFAULT_UPDATE_INTERVAL);
+        document.addEventListener("visibilitychange", this._onVisibilityChange);
     }
     disconnectedCallback() {
         super.disconnectedCallback();
+        document.removeEventListener("visibilitychange", this._onVisibilityChange);
         if (this._updateTimer) {
             clearInterval(this._updateTimer);
             this._updateTimer = undefined;

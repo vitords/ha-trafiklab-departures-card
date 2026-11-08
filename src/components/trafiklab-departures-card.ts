@@ -80,11 +80,15 @@ export class TrafiklabDeparturesCard extends LitElement {
 
   connectedCallback(): void {
     super.connectedCallback();
+    // HA detaches the panel while hidden; hass may be unchanged on reattach
+    this._refresh();
     this._updateTimer = setInterval(() => this._refresh(), DEFAULT_UPDATE_INTERVAL);
+    document.addEventListener("visibilitychange", this._onVisibilityChange);
   }
 
   disconnectedCallback(): void {
     super.disconnectedCallback();
+    document.removeEventListener("visibilitychange", this._onVisibilityChange);
     if (this._updateTimer) {
       clearInterval(this._updateTimer);
       this._updateTimer = undefined;
@@ -96,6 +100,11 @@ export class TrafiklabDeparturesCard extends LitElement {
       this._refresh();
     }
   }
+
+  /** Timers are paused while the screen is off; don't wait for the next tick on wake */
+  private _onVisibilityChange = (): void => {
+    if (!document.hidden) this._refresh();
+  };
 
   private _refresh(): void {
     if (!this.hass || !this._config?.entity) return;

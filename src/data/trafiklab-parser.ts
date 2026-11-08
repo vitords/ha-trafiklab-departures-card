@@ -27,6 +27,8 @@ export function parseTrafiklabEntity(
 
   const lineConfigs: LineConfig[] = config.lines?.length ? config.lines : [{}];
   const excludeFilters = config.exclude ?? [];
+  const parsedAsOf = Date.parse(entity.last_updated);
+  const asOf = Number.isNaN(parsedAsOf) ? undefined : parsedAsOf;
 
   const rows: DeparturesDataRow[] = [];
 
@@ -41,7 +43,9 @@ export function parseTrafiklabEntity(
       realTime: dep.real_time ?? false,
       minutesUntil: dep.minutes_until ?? null,
       timeFormatted: dep.time_formatted ?? null,
+      asOf,
     });
+    if (departureTime.hasDeparted()) continue;
 
     rows.push({
       time: departureTime,
